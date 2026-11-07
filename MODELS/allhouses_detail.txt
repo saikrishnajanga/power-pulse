@@ -1,0 +1,395 @@
+﻿============================================================
+CELL 8 [code]
+============================================================
+# Appliance mappings from REFIT dataset
+APPLIANCE_MAPPINGS = {
+    "House1": {1: "Fridge", 2: "Freezer(1)", 3: "Freezer(2)", 4: "Washer Dryer", 
+               5: "Washing Machine", 6: "Dishwasher", 7: "Computer", 8: "Television Site", 9: "Electric Heater"},
+    "House2": {1: "Fridge-Freezer", 2: "Washing Machine", 3: "Dishwasher", 4: "Television Site",
+               5: "Microwave", 6: "Toaster", 7: "Hi-Fi", 8: "Kettle", 9: "Overhead Fan"},
+    "House3": {1: "Toaster", 2: "Fridge-Freezer", 3: "Freezer", 4: "Tumble Dryer",
+               5: "Dishwasher", 6: "Washing Machine", 7: "Television Site", 8: "Microwave", 9: "Kettle"},
+    "House4": {1: "Fridge", 2: "Freezer", 3: "Fridge-Freezer", 4: "Washing Machine(1)",
+               5: "Washing Machine(2)", 6: "Desktop Computer", 7: "Television Site", 8: "Microwave", 9: "Kettle"},
+    "House5": {1: "Fridge-Freezer", 2: "Tumble Dryer", 3: "Washing Machine", 4: "Dishwasher",
+               5: "Desktop Computer", 6: "Television Site", 7: "Microwave", 8: "Kettle", 9: "Toaster"},
+    "House6": {1: "Freezer", 2: "Washing Machine", 3: "Dishwasher", 4: "MJY Computer",
+               5: "TV/Satellite", 6: "Microwave", 7: "Kettle", 8: "Toaster", 9: "PGM Computer"},
+    "House7": {1: "Fridge", 2: "Freezer(1)", 3: "Freezer(2)", 4: "Tumble Dryer",
+               5: "Washing Machine", 6: "Dishwasher", 7: "Television Site", 8: "Toaster", 9: "Kettle"},
+    "House8": {1: "Fridge", 2: "Freezer", 3: "Washer Dryer", 4: "Washing Machine",
+               5: "Toaster", 6: "Computer", 7: "Television Site", 8: "Microwave", 9: "Kettle"},
+    "House9": {1: "Fridge-Freezer", 2: "Washer Dryer", 3: "Washing Machine", 4: "Dishwasher",
+               5: "Television Site", 6: "Microwave", 7: "Kettle", 8: "Hi-Fi", 9: "Electric Heater"},
+    "House10": {1: "Magimix(Blender)", 2: "Toaster", 3: "Chest Freezer", 4: "Fridge-Freezer",
+                5: "Washing Machine", 6: "Dishwasher", 7: "Television Site", 8: "Microwave", 9: "K Mix"},
+    "House11": {1: "Fridge", 2: "Fridge-Freezer", 3: "Washing Machine", 4: "Dishwasher",
+                5: "Computer Site", 6: "Microwave", 7: "Kettle", 8: "Router", 9: "Hi-Fi"},
+    "House12": {1: "Fridge-Freezer", 2: "Unknown_2", 3: "Unknown_3", 4: "Computer Site",
+                5: "Microwave", 6: "Kettle"},
+    "House13": {1: "Television Site", 2: "Freezer", 3: "Washing Machine", 4: "Dishwasher",
+                5: "Unknown_5", 6: "Network Site", 7: "Microwave", 8: "Microwave(2)", 9: "Kettle"},
+    "House15": {1: "Fridge-Freezer", 2: "Tumble Dryer", 3: "Washing Machine", 4: "Dishwasher",
+                5: "Computer Site", 6: "Television Site", 7: "Microwave", 8: "Hi-Fi", 9: "Toaster"},
+    "House16": {1: "Fridge-Freezer(1)", 2: "Fridge-Freezer(2)", 3: "Electric Heater(1)", 4: "Electric Heater(2)",
+                5: "Washing Machine", 6: "Dishwasher", 7: "Computer Site", 8: "Television Site", 9: "Dehumidifier"},
+    "House17": {1: "Freezer", 2: "Fridge-Freezer", 3: "Tumble Dryer", 4: "Washing Machine",
+                5: "Computer Site", 6: "Television Site", 7: "Microwave", 8: "Kettle", 9: "TV Site(Bedroom)"},
+    "House18": {1: "Fridge(garage)", 2: "Freezer(garage)", 3: "Fridge-Freezer", 4: "Washer Dryer(garage)",
+                5: "Washing Machine", 6: "Dishwasher", 7: "Desktop Computer", 8: "Television Site", 9: "Microwave"},
+    "House19": {1: "Fridge Freezer", 2: "Washing Machine", 3: "Television Site", 4: "Microwave",
+                5: "Kettle", 6: "Toaster", 7: "Bread-maker", 8: "Games Console", 9: "Hi-Fi"},
+    "House20": {1: "Fridge", 2: "Freezer", 3: "Tumble Dryer", 4: "Washing Machine", 5: "Dishwasher",
+                6: "Computer Site", 7: "Television Site", 8: "Microwave", 9: "Kettle"},
+    "House21": {1: "Fridge-Freezer", 2: "Tumble Dryer", 3: "Washing Machine", 4: "Dishwasher",
+                5: "Food Mixer", 6: "Television", 7: "Unknown_7", 8: "Vivarium", 9: "Pond Pump"}
+}
+
+# SKIP lists for houses with appliances that recorded nothing
+SKIP_MAPPINGS = {
+    "House12": [7, 8, 9]
+}
+
+print(f"Loaded mappings for {len(APPLIANCE_MAPPINGS)} houses")
+
+============================================================
+CELL 10 [code]
+============================================================
+def clean_house(input_path):
+    """Clean house data with enhanced features (max, min, std)"""
+    print(f"Cleaning {os.path.basename(input_path)}...")
+    
+    MIN_MINUTES_PER_HOUR = 45
+    CHUNK = 2_000_000
+    
+    # REFIT format: Unix, Aggregate, Appliance1-9, Issues
+    cols = ["Unix", "Aggregate"] + [f"Appliance{i}" for i in range(1, 10)] + ["Issues"]
+    power_cols = ["Aggregate"] + [f"Appliance{i}" for i in range(1, 10)]
+    
+    minute_parts = []
+    
+    for chunk in pd.read_csv(input_path, chunksize=CHUNK, header=None, names=cols, low_memory=False):
+        chunk.columns = [c.strip() for c in chunk.columns]
+        
+        # Unix timestamp
+        chunk["Unix"] = pd.to_numeric(chunk["Unix"], errors="coerce")
+        chunk = chunk.dropna(subset=["Unix"]).sort_values("Unix")
+        
+        # Drop duplicates
+        chunk = chunk.drop_duplicates(subset="Unix", keep="first")
+        
+        # Convert power columns to numeric
+        for c in power_cols:
+            chunk[c] = pd.to_numeric(chunk[c], errors="coerce")
+        
+        # Handle negative values
+        chunk[power_cols] = chunk[power_cols].mask(chunk[power_cols] < 0)
+        
+        # Handle issues column
+        issues = pd.to_numeric(chunk["Issues"], errors="coerce").fillna(0) == 1
+        chunk = chunk[~issues]
+        
+        # Per-minute aggregation
+        chunk["minute"] = pd.to_datetime(chunk["Unix"], unit="s").dt.floor("min")
+        g = chunk.groupby("minute")[power_cols]
+        minute_parts.append(pd.concat([g.sum(min_count=1).add_suffix("__sum"),
+                                       g.count().add_suffix("__n"),
+                                       g.max().add_suffix("__max"),
+                                       g.min().add_suffix("__min"),
+                                       g.std().add_suffix("__std")], axis=1))
+    
+    # Combine all minute parts
+    m = pd.concat(minute_parts).groupby(level=0).sum()
+    
+    # Calculate mean
+    power_cols_sum = [c[:-5] for c in m.columns if c.endswith("__sum")]
+    minute = pd.DataFrame({c: m[c + "__sum"] / m[c + "__n"].replace(0, np.nan)
+                           for c in power_cols_sum})
+    
+    # Full minute grid
+    minute = minute.reindex(pd.date_range(minute.index.min(), minute.index.max(), freq="min"))
+    minute.index.name = "timestamp"
+    
+    # Hourly aggregation
+    hourly = minute.resample("1h").mean()
+    coverage = minute["Aggregate"].notna().resample("1h").sum()
+    hourly.loc[coverage < MIN_MINUTES_PER_HOUR, :] = np.nan
+    hourly["minutes_with_data"] = coverage
+    
+    # Add max, min, std
+    hourly_max = pd.DataFrame({c: m[c + "__max"].resample("1h").max() for c in power_cols_sum})
+    hourly_min = pd.DataFrame({c: m[c + "__min"].resample("1h").min() for c in power_cols_sum})
+    hourly_std = pd.DataFrame({c: m[c + "__std"].resample("1h").mean() for c in power_cols_sum})
+    
+    for c in power_cols_sum:
+        hourly[c.lower() + "_max"] = hourly_max[c]
+        hourly[c.lower() + "_min"] = hourly_min[c]
+        hourly[c.lower() + "_std"] = hourly_std[c]
+    
+    # kWh conversion
+    for c in power_cols_sum:
+        hourly[c.lower() + "_kwh"] = hourly[c] / 1000.0
+    hourly = hourly.rename(columns={c: c.lower() + "_w" for c in power_cols_sum})
+    
+    # Time features
+    hourly["hour"] = hourly.index.hour
+    hourly["weekday"] = hourly.index.weekday
+    hourly["month"] = hourly.index.month
+    hourly["house"] = os.path.splitext(os.path.basename(input_path))[0]
+    
+    return hourly
+
+print("Cleaning function defined!")
+
+============================================================
+CELL 14 [code]
+============================================================
+def train_house(df, house_name, appliances_dict, skip_list=[]):
+    """Train models for a single house with MSE evaluation"""
+    print(f"\n{'='*80}")
+    print(f"TRAINING {house_name}")
+    print(f"{'='*80}")
+    
+    # Add lag features
+    df = add_lag_features(df)
+    
+    # Add time features
+    df["hour"] = df.index.hour
+    df["weekday"] = df.index.weekday
+    df["month"] = df.index.month
+    df["is_weekend"] = (df["weekday"] >= 5).astype(int)
+    df["hour_sin"] = np.sin(2 * np.pi * df["hour"] / 24)
+    df["hour_cos"] = np.cos(2 * np.pi * df["hour"] / 24)
+    
+    # Get targets
+    targets = [f"appliance{i}_kwh" for i in appliances_dict]
+    
+    # Get feature columns
+    feature_cols = [c for c in df.columns if c not in targets + ["house"]]
+    
+    # Drop missing values
+    df_clean = df.dropna(subset=["aggregate_kwh"] + targets)
+    print(f"Hours after dropping missing: {len(df_clean)}")
+    
+    # Drop impossible hours
+    all_app = [f"appliance{i}_kwh" for i in range(1, 10) if f"appliance{i}_kwh" in df.columns and i not in skip_list]
+    impossible = df_clean[all_app].sum(axis=1) > 1.10 * df_clean["aggregate_kwh"] + 0.005
+    df_clean = df_clean[~impossible]
+    print(f"Hours after dropping impossible: {len(df_clean)}")
+    
+    print(f"Total features: {len(feature_cols)}")
+    
+    # Time-based split: 80% training, 20% testing
+    TRAIN_FRACTION = 0.80
+    cut = int(len(df_clean) * TRAIN_FRACTION)
+    train = df_clean.iloc[:cut]
+    test = df_clean.iloc[cut:]
+    
+    print(f"Training: {len(train)} hours (80%)")
+    print(f"Testing: {len(test)} hours (20%)")
+    
+    # Metered energy share
+    metered = df_clean[targets].sum().sum() / df_clean["aggregate_kwh"].sum()
+    print(f"Metered energy: {100 * metered:.1f}%")
+    
+    # Train each appliance
+    results = []
+    
+    for i, name in appliances_dict.items():
+        print(f"\n--- {name} ---")
+        
+        target_col = f"appliance{i}_kwh"
+        
+        # Prepare data
+        X_train = train[feature_cols]
+        y_train = train[target_col]
+        X_test = test[feature_cols]
+        y_test = test[target_col]
+        
+        # Train model
+        model = RandomForestRegressor(n_estimators=200, min_samples_leaf=3, n_jobs=-1, random_state=42)
+        model.fit(X_train, y_train)
+        
+        # Predictions
+        y_train_pred = model.predict(X_train)
+        y_test_pred = model.predict(X_test)
+        
+        # Clip negative predictions
+        y_train_pred = np.clip(y_train_pred, 0, None)
+        y_test_pred = np.clip(y_test_pred, 0, None)
+        
+        # Calculate metrics
+        train_mse = mean_squared_error(y_train, y_train_pred)
+        test_mse = mean_squared_error(y_test, y_test_pred)
+        train_mae = mean_absolute_error(y_train, y_train_pred)
+        test_mae = mean_absolute_error(y_test, y_test_pred)
+        train_r2 = r2_score(y_train, y_train_pred)
+        test_r2 = r2_score(y_test, y_test_pred)
+        
+        # Store results
+        results.append({
+            'house': house_name,
+            'appliance': name,
+            'train_mse': train_mse,
+            'test_mse': test_mse,
+            'mse_ratio': test_mse / train_mse if train_mse > 0 else float('inf'),
+            'train_mae': train_mae,
+            'test_mae': test_mae,
+            'train_r2': train_r2,
+            'test_r2': test_r2,
+            'mean_kwh_train': y_train.mean(),
+            'mean_kwh_test': y_test.mean()
+        })
+        
+        # Print metrics
+        print(f"Train MSE: {train_mse:.6f}")
+        print(f"Test MSE:  {test_mse:.6f}")
+        print(f"MSE Ratio: {test_mse/train_mse:.2f}")
+        print(f"Train R²: {train_r2:.4f}")
+        print(f"Test R²:  {test_r2:.4f}")
+        
+        if test_mse / train_mse < 2.0:
+            print(f"✓ Comparable performance")
+        else:
+            print(f"⚠ Possible overfitting")
+    
+    return pd.DataFrame(results)
+
+print("Training function defined!")
+
+============================================================
+CELL 16 [code]
+============================================================
+import glob
+
+# Debug: Check what's in the DATA_PATH
+print(f"Looking in: {DATA_PATH}")
+print(f"Path exists: {os.path.exists(DATA_PATH)}")
+
+if os.path.exists(DATA_PATH):
+    all_files = os.listdir(DATA_PATH)
+    print(f"Total files in directory: {len(all_files)}")
+    print(f"Files: {all_files[:10]}")  # Show first 10 files
+else:
+    print("DATA_PATH does not exist!")
+
+# Try multiple patterns to find house files
+house_files = []
+patterns = ["House*.csv", "house*.csv", "HOUSE*.csv", "*.csv"]
+
+for pattern in patterns:
+    found = sorted(glob.glob(os.path.join(DATA_PATH, pattern)))
+    print(f"Pattern '{pattern}': found {len(found)} files")
+    if found:
+        house_files = found
+        break
+
+# If still not found, try without extension
+if not house_files:
+    for pattern in ["House*", "house*", "HOUSE*"]:
+        found = sorted(glob.glob(os.path.join(DATA_PATH, pattern)))
+        print(f"Pattern '{pattern}' (no extension): found {len(found)} files")
+        if found:
+            house_files = found
+            break
+
+print(f"\nFinal count: {len(house_files)} house files")
+if house_files:
+    print(f"Houses: {[os.path.basename(f) for f in house_files]}")
+
+# Cleaned data directory (for saving any intermediate results)
+cleaned_dir = os.path.join(OUTPUT_PATH, "cleaned")
+os.makedirs(cleaned_dir, exist_ok=True)
+
+all_results = []
+
+for house_file in house_files:
+    house_name = os.path.basename(house_file).replace(".csv", "")
+    
+    # Handle various naming formats
+    if "CLEAN_" in house_name:
+        house_name = house_name.replace("CLEAN_", "")
+    if "_hourly" in house_name:
+        house_name = house_name.replace("_hourly", "")
+    
+    # Ensure it starts with "House" not "house"
+    house_name = "House" + house_name[5:] if house_name.lower().startswith("house") else house_name
+    
+    print(f"\nProcessing: {house_name}")
+    
+    if house_name not in APPLIANCE_MAPPINGS:
+        print(f"[SKIP] {house_name}: No appliance mapping")
+        continue
+    
+    # Skip cleaning - load the file directly (it's already cleaned)
+    print(f"[OK] Loading already-cleaned data...")
+    try:
+        df = pd.read_csv(house_file, index_col=0, parse_dates=True)
+        print(f"Loaded {len(df)} rows with columns: {list(df.columns[:10])}...")
+    except Exception as e:
+        print(f"[FAIL] Loading error: {e}")
+        continue
+    
+    # Train
+    try:
+        result_df = train_house(
+            df,
+            house_name,
+            APPLIANCE_MAPPINGS[house_name],
+            SKIP_MAPPINGS.get(house_name, [])
+        )
+        all_results.append(result_df)
+    except Exception as e:
+        print(f"[FAIL] Training error: {e}")
+        continue
+
+print(f"\n{'='*80}")
+print(f"Processed {len(all_results)} houses successfully!")
+
+============================================================
+CELL 18 [code]
+============================================================
+if all_results:
+    # Combine all results
+    combined = pd.concat(all_results, ignore_index=True)
+    
+    # Save complete results
+    combined.to_csv(os.path.join(OUTPUT_PATH, "all_houses_results.csv"), index=False)
+    print(f"[OK] Saved complete results to all_houses_results.csv")
+    
+    # Create summary table
+    summary = combined[["house", "appliance", "train_mse", "test_mse", "mse_ratio", 
+                       "train_r2", "test_r2"]].round(6)
+    summary.to_csv(os.path.join(OUTPUT_PATH, "summary_table.csv"), index=False)
+    print(f"[OK] Saved summary to summary_table.csv")
+    
+    # Print summary
+    print(f"\n{'='*80}")
+    print("SUMMARY TABLE")
+    print(f"{'='*80}")
+    pd.set_option("display.width", 200)
+    pd.set_option("display.max_rows", None)
+    print(summary.to_string(index=False))
+    
+    # Statistics
+    print(f"\n{'='*80}")
+    print("STATISTICS")
+    print(f"{'='*80}")
+    print(f"Total houses: {combined['house'].nunique()}")
+    print(f"Total appliances: {len(combined)}")
+    print(f"\n--- MSE Statistics ---")
+    print(f"Mean Train MSE: {combined['train_mse'].mean():.6f}")
+    print(f"Mean Test MSE: {combined['test_mse'].mean():.6f}")
+    print(f"Mean MSE Ratio: {combined['mse_ratio'].mean():.2f}")
+    print(f"Median MSE Ratio: {combined['mse_ratio'].median():.2f}")
+    print(f"\n--- R² Statistics ---")
+    print(f"Mean Train R²: {combined['train_r2'].mean():.4f}")
+    print(f"Mean Test R²: {combined['test_r2'].mean():.4f}")
+    print(f"Median Test R²: {combined['test_r2'].median():.4f}")
+    print(f"\n--- Performance Count ---")
+    print(f"Appliances with MSE Ratio < 2.0: {(combined['mse_ratio'] < 2.0).sum()} / {len(combined)}")
+    print(f"Appliances with Test R² > 0.9: {(combined['test_r2'] > 0.9).sum()} / {len(combined)}")
+    print(f"Appliances with Test R² > 0.5: {(combined['test_r2'] > 0.5).sum()} / {len(combined)}")
+else:
+    print("No results to summarize")
+

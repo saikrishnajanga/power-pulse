@@ -1,0 +1,24 @@
+# Python / Virtual Environment
+__pycache__/
+*.py[cod]
+*$py.class
+*.env
+.venv/
+venv/
+env/
+
+# Node / Frontend
+node_modules/
+.npm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs (frontend/dist is served by FastAPI so keep dist tracked or build on deploy)
+.DS_Store
+Thumbs.db
+
+
+# Ignore large model dump file (>100MB blocked by GitHub)
+*.pkl
+BILLS/powerpulse_model.pkl

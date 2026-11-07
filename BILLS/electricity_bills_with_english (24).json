@@ -1,0 +1,40 @@
+{
+  "record_count": 1,
+  "records": [
+    {
+      "record_id": "BILL_0001",
+      "file_name": "WhatsApp Image 2026-11-03 at 17.53.47 (4).jpeg",
+      "identifier": "WhatsApp Image 2026-11-03 at 17.53.47 (4)",
+      "original_ocr_text": "7%) 1೫\n\n|\n4. టల 5३ 0 an Dies న 0\n) 1. ಮ 0 |\n\nఎం bug | - Sep 21\n೬ “Jul 21 Aug 21\n| । 5) 0\n\nogo\n(GC రూ ಆವಿ ರ. లం, ५०५ మా |\nಸರ್‌ನೆರಿ 212 Kwh / 0 Kvah\nళ్‌ ५) ९ | భి reeks ; ఉం కు 0 ‘\nAg ood 1.63 పిఎఫ్‌ 000 | 08,193 Kuli 110 0) '\n| వినియోగ ap / 87505 OF Se ರ 702 80 ೫]\n| ಔರ చారలు ¢ 20 00 |\n(కం 50, 00\nహారతులు! వా వ్‌ ಈ 0 00 |\nSaPnhos సర్‌చార్రీ : 12. 72\n\nవద్యుత్‌ సుంకము : ౧.00\nవిద్యుత్‌ సుంకముపై sh 0, 00\n\n110% ೫51.737 260. 76\n\nఇతర ವಾರಿಲು : 0. 00\n\nVV ABR ಎಂಗ ; 0.00\n\nS455 ವಾಧಿಲು : 20. 00\n0.41. oP. న్న 45, 00\n\nనర్తుబుూటు మొతము :\n606 మొత్తము 1046, 00\n\nసవరణ (+/-)\n\n| 0.00\npert, మొత్తము.:: -0. 36\nసవ్ఫీడీ మొత్తము | 00\nసవరకు (౮) 1\nసలమొతము ౧.00\nಜಾರಿ, ౧1 ಬಿರಿಕು బకాయట్రు\nగ్ల (ರ್‌ शा ay ३ టౌ బక ಯಲು\nA Denand [|\n0018005 =e\n\nಗ 0.00 |\nనెల మొత్తము : 0, 00\n\nPB, 31 S55 జకాయిలు 1046.00\n\nಟಗ ಯ బహాయిలు 0. 00\nACD_Amount... ಮುಃ ಸ 0. 00\n\nచై. Hoos Mid ಆದಿಯ (1/02/1101\nFOO త్త\n\n0 7777777\nడును 2०601, 0 19-08 గ\n\nSp Ava (able యి (2G)\n\nಗ 01611318851, Us na ab Mo",
+      "source_language": "Telugu",
+      "english_translation": "7%) 15\n\n|\n4. Tala 53 0 An Dies Na 0\n) 1. Ma 0 |\n\nbug | - Sep 21\n6 “Jul 21 Aug 21\n| | 5) 0\n\nogo\n(GC Ru Avi Ra. Lam, 505 Ma |\n212 Kwh / 0 Kvah\nL 5) 9 | Bhi Reeks ; Um Ku 0 ‘\nAg ood 1.63 000 | 08,193 Kuli 110 0) '\n| Viniyoga Ap / 87505 OF Se Ra 702 80 5]\n| Aura Charalu ¢ 20 00 |\n(kam 50, 00\nHaratulu! Va V I 0 00 |\nSaPnhos Sarcharri : 12. 72\n\nVadyut Sunkamu : 1.00\nVidyut Sunkamupai Sh 0, 00\n\n110% 551.737 260. 76\n\nItara Varilu : 0. 00\n\nVV ABR Enga ; 0.00\n\nS455 Vadhilu : 20. 00\n0.41. oP. Nna 45, 00\n\nNartubuutu Motamu :\n606 Mottamu 1046, 00\n\nRevision (+/-)\n\n| 0.00\nPert, Mottamu.:: -0. 36\nSavphidi Mottamu | 00\nSavaraku (8) 1\nSalamotamu 1.00\nJari, 11 Biriku Bakayatru\nGla (r Sha Ay 3 Tau Baka Yalu\nA Denand [|\n0018005 =e\n\nGa 0.00 |\nMonth total : 0, 00\n\nPB, 31 S55 Jakayilu 1046.00\n\nTaga Ya Bahayilu 0. 00\nACD_Amount... 0. 00\n\n. Hoos Mid (1/02/1101\nFOO Tta\n\n0 7777777\nDunu 20601, 0 19-08 Ga\n\nSp Ava (able (2G)\n\nGa 01611318851, Us Na Ab Mo",
+      "translation_status": "success",
+      "electricity_provider": null,
+      "consumer_number": "7",
+      "customer_id": null,
+      "service_connection_number": null,
+      "customer_name": null,
+      "address": null,
+      "bill_number": null,
+      "bill_date": null,
+      "bill_month": null,
+      "due_date": null,
+      "meter_number": null,
+      "units_consumed": 212.0,
+      "current_bill_amount": 0.0,
+      "previous_balance": 1046.0,
+      "late_fee": 12.0,
+      "subsidy": null,
+      "net_bill_amount": 104600.0,
+      "total_amount_due": 104600.0,
+      "last_payment_date": null,
+      "last_payment_amount": null,
+      "manual_review_required": true,
+      "review_flags": [
+        "Provider not confidently identified from OCR."
+      ],
+      "customer_name_english": null,
+      "address_english": null
+    }
+  ]
+}

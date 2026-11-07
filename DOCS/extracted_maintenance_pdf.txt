@@ -1,0 +1,484 @@
+
+--- Page 1 ---
+PRISM: M Document
+Maintenance, Monitoring and Risks: PowerPulse Electricity Models
+Part of PRISM
+M = Maintenance, Monitoring and Risks (the fifth section of the PRISM 
+structure)
+Models covered
+Model A: whole-home next-hour forecaster and spike detector (XGBoost). 
+Model B: per-appliance hourly models for REFIT houses (Random Forest).
+Source material
+Electricity_Consumption_Forecasting_and_Spike_Detection.ipynb and 
+PowerPulse_AllHouses_Colab.ipynb. The shared Colab link needs a 
+Google sign-in and was not opened.
+Evidence basis
+Statements about the models come from the notebook code. Thresholds, 
+cadences and owners marked "recommended" are suggestions, not taken 
+from the notebooks. No run results were available.
+Owner / version / date
+ 
+1. Purpose of This Document
+This document tells the people who run these models what to look after, what to watch, and what 
+can go wrong. It covers routine maintenance, ongoing monitoring, a risk register based on what 
+the notebook code actually does, and a response guide for common problems.
+2. System Snapshot
+Model A
+Model B
+Purpose
+Hourly consumption forecast (7 and 
+30 days) with spike flags
+Per-appliance hourly energy 
+estimates for REFIT houses
+Algorithm
+XGBRegressor, 300 trees, depth 6, 
+learning rate 0.05
+RandomForestRegressor, 200 trees, 
+min_samples_leaf 3, one per 
+appliance
+Input
+hourly_power_consumption.csv 
+(Datetime, Hourly_energy_kWh) in 
+Google Drive
+Cleaned hourly REFIT files in 
+./REFIT; appliance mapping for 20 
+houses (House14 not mapped)
+Outputs
+weekly and monthly forecast CSVs; 
+weekly and monthly spike CSVs
+all_houses_results.csv, 
+summary_table.csv
+Model saved to disk?
+No. The model lives only in the Colab 
+session.
+No. Models are not stored; only 
+metrics are saved.
+Runs
+Manually, top to bottom, in Colab
+Manually, in a local or Colab 
+notebook
+PRISM M Document: PowerPulse Electricity Models   |   Page 1
+
+--- Page 2 ---
+3. Maintenance Plan
+3.1 Routine tasks
+Task
+Recommended 
+cadence
+What to do
+Refresh input data
+Before each retrain
+Model A: append the latest hourly readings to the CSV. 
+Model B: add new or corrected REFIT files. Confirm 
+column names and date ranges.
+Retrain Model A
+Monthly, or when a 
+trigger in 3.2 fires
+Run all cells; record MAE, RMSE and R2; compare with 
+the previous run; save forecasts and spike CSVs under 
+a dated name.
+Retrain Model B
+When data or 
+appliances change
+Run all cells; review summary_table.csv; check the 
+count of appliances with MSE ratio under 2.0.
+Archive outputs
+Every run
+Copy CSV outputs and metrics into a dated folder. The 
+notebooks overwrite files of the same name.
+Record environment
+Every run
+Note xgboost, scikit-learn, pandas and numpy versions. 
+The Model A install cell is not version-pinned.
+Review spike rule
+Quarterly
+Check the median + 3 x 1.4826 x MAD rule against 
+recent genuine high-usage hours; adjust the multiplier if 
+flags are too many or too few.
+3.2 Retraining triggers
+•
+Rolling forecast error is clearly above the baseline set at the last accepted run (see section 
+4).
+•
+A change in the household: new appliance, occupancy change, solar or battery installation, 
+tariff change.
+•
+A gap or fault in the meter data that was later corrected.
+•
+A seasonal change not yet represented in the training data. Model A only learns months it 
+has seen.
+•
+Library upgrades that change model behaviour.
+3.3 Run steps: Model A
+•
+Confirm hourly_power_consumption.csv is in MyDrive/Electricity_consumption with 
+Datetime and Hourly_energy_kWh.
+•
+Mount Drive and run cells in order. Cell 3 stops with an error if the file or columns are 
+missing.
+•
+Check the printed row count and date range for sense before trusting any output.
+•
+Compare Cell 7 metrics with the baseline. Open the Cell 8 plot to confirm predictions follow 
+actuals.
+•
+Confirm all four CSV files were written in Cell 13 and archive them.
+3.4 Run steps: Model B
+•
+Place the house CSV files in ./REFIT and set DATA_PATH and OUTPUT_PATH.
+•
+Check the Step 8 log: houses skipped for a missing mapping, loading failures and training 
+failures are printed, not raised.
+•
+Review the number of houses processed against the number of files supplied.
+•
+Review summary_table.csv and the statistics block; archive both CSV files.
+PRISM M Document: PowerPulse Electricity Models   |   Page 2
+
+--- Page 3 ---
+4. Monitoring Plan
+The notebooks produce evaluation numbers only when they are run. Nothing monitors the 
+models automatically. The checks below are recommended; the starting thresholds are 
+suggestions to be replaced by values from the first accepted run.
+4.1 Model A
+Signal
+How to measure
+Recommended alert
+Forecast accuracy
+Once actuals arrive, compare the 
+first 7 days of each forecast with 
+actuals; compute MAE and 
+compare with test MAE from Cell 
+7.
+Rolling MAE more than about 25% above 
+the baseline test MAE
+Bias
+Mean of (prediction minus 
+actual) over the same window
+Consistent over- or under-prediction 
+across several days
+Spike rate
+Share of forecast hours flagged 
+Potential Spike, per run
+Share far above or below the rate seen at 
+the accepted run
+Spike usefulness
+Of flagged hours, how many 
+actuals later exceeded the same-
+hour threshold
+Low hit rate for several runs: revisit the 
+rule
+Input quality
+Rows loaded vs expected; 
+missing hours; duplicate 
+timestamps; unusual zeros
+Any missing stretch; values outside 
+plausible range
+Long-horizon drift
+Compare days 1 to 7 error with 
+days 8 to 30 once actuals exist
+Large error growth: shorten how far the 
+monthly forecast is trusted
+4.2 Model B
+Signal
+How to measure
+Recommended alert
+Generalisation
+mse_ratio (test MSE divided by 
+train MSE) per appliance
+Ratio of 2.0 or more is flagged by the 
+notebook; track the count over time
+Fit quality
+test_r2 per appliance; counts 
+above 0.5 and 0.9
+Any appliance that drops sharply from the 
+previous run
+Data coverage
+Hours remaining after dropping 
+missing and impossible hours
+Large fall in usable hours for a house
+Metered share
+Printed Metered energy 
+percentage per house
+Big change between runs
+Pipeline health
+Houses processed vs files 
+supplied; skipped and failed 
+houses
+Any unexpected skip or failure
+PRISM M Document: PowerPulse Electricity Models   |   Page 3
+
+--- Page 4 ---
+5. Risk Register
+Severity is a judgement of the likely effect on trust in the output if the risk is real. Items marked 
+"verify" are concerns read from the code that should be confirmed by running the notebook.
+ID
+Risk
+Evidence in the notebook
+Severity
+Mitigation
+A1
+Training and 
+forecasting 
+features may be 
+timed differently 
+(verify)
+Training rows use lag_1 as 
+the hour before the row while 
+the target is the hour after the 
+row; forecast code uses 
+lag_1 as the hour before the 
+predicted hour, and hour is 
+the predicted hour.
+High
+Align feature construction in 
+training with generate_forecast, 
+then re-evaluate and compare 
+scores.
+A2
+Errors grow over 
+long horizons
+Forecast feeds each 
+prediction back as history for 
+168 or 720 steps; the 
+notebook warns about 
+accumulated error.
+High
+Treat the 30-day forecast as 
+indicative; validate by horizon; 
+consider direct multi-horizon 
+models.
+A3
+Final forecast 
+model never sees 
+the latest 20% of 
+data
+The model is trained on the 
+earliest 80% only and reused 
+for forecasting.
+Medium
+After evaluating, retrain on all 
+data before producing 
+operational forecasts.
+A4
+Seasonality poorly 
+learned
+Month is a feature, but only 
+months present in the data 
+can be learned; no weather 
+or holiday inputs.
+Medium
+Use at least a full year of data; 
+consider weather and holiday 
+features.
+A5
+Spike rule untested 
+and has an edge 
+case
+Flags are never compared 
+with actual events. If an 
+hour's MAD is zero, the 
+threshold equals the median.
+Medium
+Backtest flags on past data; set 
+a minimum MAD floor.
+A6
+Gaps in the series 
+break lag logic
+Lags use row positions (iloc 
+and shift); duplicates are 
+averaged but missing hours 
+are not filled.
+Medium
+Reindex to a continuous hourly 
+grid and handle gaps explicitly.
+A7
+Single split gives 
+limited confidence
+One 80/20 chronological 
+split.
+Low
+Use rolling-origin backtesting.
+B1
+Target leakage 
+possible (verify)
+Features are all columns 
+except target kWh columns 
+and house, so same-hour 
+appliance power, max, min 
+and std columns and the 
+appliance's own lags may be 
+included.
+High
+Print feature_cols; drop 
+columns derived from the 
+target appliance in the current 
+hour; decide about own lags.
+B2
+Train scores are in-
+sample
+Random forest train MSE is 
+measured on training data; 
+ratio threshold of 2.0 is a rule 
+of thumb.
+Medium
+Use cross-validation by time 
+blocks; judge mainly on test 
+metrics.
+B3
+Cleaning not 
+applied in run loop
+clean_house is defined but 
+Step 8 loads files assumed to 
+be already cleaned.
+Medium
+Document how cleaned files 
+were produced or call the 
+cleaning step.
+B4
+Incomplete or 
+uncertain appliance 
+labels
+Mappings include 
+Unknown_2, Unknown_3, 
+Unknown_5, Unknown_7; 
+House14 absent; House12 
+skip list.
+Medium
+Label or exclude unknown 
+appliances; document the 
+missing house.
+PRISM M Document: PowerPulse Electricity Models   |   Page 4
+
+--- Page 5 ---
+ID
+Risk
+Evidence in the notebook
+Severity
+Mitigation
+B5
+Failures are silent
+Loading and training errors 
+are caught and printed, then 
+the loop continues.
+Medium
+Collect failures into a report 
+and stop the run if too many 
+occur.
+B6
+Hard-coded paths 
+and mixed 
+instructions
+Headings mention Google 
+Drive; code uses ./REFIT and 
+./PowerPulse_AllHouses_Re
+sults.
+Low
+Move paths to one 
+configuration cell.
+S1
+Models not 
+persisted
+Neither notebook saves a 
+trained model.
+Medium
+Save models with version and 
+data range; keep the run log.
+S2
+Unpinned 
+dependencies
+Model A installs xgboost and 
+ipywidgets without versions.
+Low
+Pin versions in a requirements 
+note.
+S3
+Privacy of 
+consumption data
+Household readings can 
+reveal routines; outputs are 
+written to Drive or local 
+folders.
+Medium
+Restrict folder access; do not 
+share data with the notebook.
+S4
+Dependence on 
+Google Drive state
+Model A stops if the Drive 
+folder or file is missing.
+Low
+Keep a backup copy of the 
+dataset.
+6. Response Guide
+Symptom
+Likely cause
+Action
+FileNotFoundError or 
+missing columns (Model A)
+Wrong Drive folder, file name or 
+headers
+Fix the path or headers; rerun from 
+Cell 3.
+Forecast is flat or unrealistic
+Recursive drift, bad recent data, 
+or feature mismatch (A1)
+Inspect last observed data; apply the 
+A1 check; retrain.
+Very many or very few 
+spikes
+Threshold unsuitable after a 
+pattern change, or MAD near 
+zero
+Review per-hour median and MAD; 
+adjust the rule; retrain.
+Model B R2 near 1.0 for 
+many appliances
+Leakage (B1)
+Audit feature_cols and rerun.
+Model B houses missing 
+from results
+No mapping, load error or 
+training error
+Read the Step 8 log; fix file names or 
+mappings.
+Metrics much worse after 
+retraining
+Data problem, changed 
+household, library change
+Compare data ranges and versions 
+with the archived run; restore the 
+previous setup if needed.
+PRISM M Document: PowerPulse Electricity Models   |   Page 5
+
+--- Page 6 ---
+7. Review Checklist and Change Log
+7.1 Before accepting a run
+•
+Data range and row counts printed and sensible.
+•
+Metrics recorded and compared with the previous accepted run.
+•
+Plots inspected; no obvious flat lines or negative values.
+•
+Outputs archived with date and library versions.
+•
+Open risks reviewed, especially A1 and B1 until resolved.
+7.2 Change log
+Date
+Version
+Change and reason
+Reviewed by
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+PRISM M Document: PowerPulse Electricity Models   |   Page 6

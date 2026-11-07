@@ -1,0 +1,170 @@
+PRISM-M Task Breakdown Structure (TBS): PowerPulse
+SmartX Technologies | PRISM Phase: M – Milestone Execution
+Project: PowerPulse: AI-Driven Energy Consumption & Cost Optimization | Project Type: Web App | TBS version: 0.1 | Status: Draft for execution plan approval
+Purpose: Convert the approved design into a predictable, testable execution plan. Tasks must be independently buildable, reviewable, and verifiable.
+Convention: items marked [Assumed] are planning defaults that depend on an open item in Section 11. Task size is in ideal engineering days (1 to 3 days maximum per task) and includes writing the task's own tests and documentation.
+1. References
+2. Execution Objectives
+Functionality that will exist at the end of this milestone (end of Week 8):
+Signed-in Telangana household users (and small businesses with a covered tariff category) can give consent, upload a bill (PDF or image), review and confirm the extracted details, and complete an appliance questionnaire.
+The system calculates cost from the tariff, shows consumption history, forecasts monthly and seasonal usage with confidence, flags spikes with a likely cause, estimates a usage breakdown, and benchmarks against similar households.
+Users see ranked recommendations (solar, battery, LED, inverter AC, solar water heater, behaviour changes) with subsidies applied, ranges, payback, 5 and 10-year savings, and environmental impact, all labelled as estimates with visible assumptions. They can compare options, compare bills, and download a PDF savings report.
+Users can delete their data and account. Analysts can maintain tariff, subsidy, price and parameter data.
+The system runs on staging and production, with logging, metrics, alerts, feature flags, rollback, and a completed pilot.
+Acceptance criteria that will be met:
+Every Gherkin acceptance criterion for FR-01 to FR-27 in PRISM-R Section 7 passes (traceability in Section 7 below).
+Edge cases EC-01 to EC-19 behave as specified in PRISM-S Section 10.
+The NFR targets in PRISM-R Section 9 are measured and met, or deviations are approved by the Decision Owner.
+Success metrics can be measured from recorded data: 90% or higher bills read correctly, 15% or lower forecast error, 70% or higher users viewing a recommendation with ROI, 10% or more estimated savings per user.
+3. Milestone Scope
+Included
+All in-scope items of PRISM-R Section 2 and all components of PRISM-S Section 5, except the optional smart meter provider integration.
+Reference data sourcing (tariffs, subsidies, prices, parameters, benchmarks) and golden test cases.
+Staging and production environments, CI/CD, monitoring, runbook, and rollback rehearsal.
+Test suites in PRISM-S Section 11, accuracy evaluation, load and security testing, and a pilot with consenting users.
+Documentation and the final presentation.
+Explicit exclusions
+Everything in PRISM-R Section 3 (installation or sales, payments, device control, financial advice, industrial users, regions beyond Telangana).
+A real smart meter provider integration. The adapter (task SM1) is an optional stretch task and the first cut line.
+Deep-learning forecasting or disaggregation, microservices, and native mobile apps (PRISM-I and PRISM-S non-goals).
+3.1 Staffing and capacity assumption [Assumed]
+The plan assumes a team of seven, each owning a clear area. Names are assigned at kickoff (Section 11, item X-01).
+Weekly planned load per person (ideal days; a full week is 5):
+The plan is built at full utilisation, so there is no hidden contingency. Contingency is held in three places: the free days in Weeks 3 (FE, QA), 6 (BE1, BE2) and 8 (BE1, BE3, ML); the optional task SM1; and the cut lines in Section 11. If the team is smaller than assumed, the cut lines are applied before any other scope change.
+4. Epic Breakdown
+5. Story Breakdown
+6. Task Breakdown (Core Section)
+How to read the tables. Each task is independently buildable and testable. The last column gives owner, size in ideal days, and planned weeks. Paths are relative to the repository root: backend/app/modules/<module>/, backend/app/core/, frontend/src/, infra/, data/seed/, docs/. Module owners write the unit and integration tests for their own tasks as part of the task; QA tasks in E-13 add cross-module suites and verification. A task is complete only when it meets the Definition of Done in Section 9.
+Test type key: unit, integration, e2e, benchmark (measured evaluation with a written result), review (documented review by a named second person).
+E-01 Platform foundation and delivery pipeline
+E-02 Identity, consent and privacy
+E-03 Reference data and admin
+E-04 Bill ingestion and extraction
+E-05 Appliance profile
+E-06 Cost engine and analysis orchestration
+Artifact | Used for
+PRISM-P Problem Brief (incl. Section 11A) | Scope, success targets, constraints
+PRISM-R PRD-Lite | FR-01 to FR-27, Gherkin acceptance criteria (Section 7), EC-01 to EC-19, NFRs, DoD
+PRISM-I Solution Options Matrix | Option 2 selected; schedule cut lines
+PRISM-S Design Document | Components (5.1 to 5.16), data model (6), APIs (7), flows (8), test suites (11.1 to 11.3), traceability (11.4), build sequence (12), open questions DQ-01 to DQ-12
+PowerPulse project specification | 8-week module plan
+Role | Area of ownership | Planned days | Peak week
+BE1 (backend lead) | Platform, identity, consent, deletion, appliances, observability, deployment | 32 | 5 days
+BE2 (backend) | Ingestion and extraction, reference data support, reporting, API contract | 31 | 5 days
+BE3 (backend) | Database and jobs, cost engine, orchestration, recommendations | 32 | 5 days
+ML (analytics) | Forecast, anomaly, breakdown, benchmark, model evaluation, load tests | 33 | 5 days
+FE (frontend) | Web client | 28 | 5 days
+QA | Test harness, integration and end-to-end suites, accuracy evaluation | 14 | 5 days
+BA (Product / Business Analyst) | Data sourcing, golden cases, consent text, help text, UAT, final presentation | 22 | 5 days
+Role | W1 | W2 | W3 | W4 | W5 | W6 | W7 | W8
+BE1 | 5 | 5 | 5 | 4 | 5 | 2 | 4 | 2
+BE2 | 2 | 5 | 5 | 5 | 5 | 1 | 4 | 4
+BE3 | 3 | 5 | 4 | 5 | 5 | 5 | 3 | 2
+ML | 4 | 3 | 5 | 5 | 5 | 5 | 5 | 1
+FE | 3 | 3 | 0 | 4 | 5 | 5 | 5 | 3
+QA | 1 | 1 | 0 | 1 | 1 | 2 | 3 | 5
+BA | 5 | 0 | 5 | 3 | 2 | 2 | 3 | 2
+Epic | Name | Design source | Requirements
+E-01 | Platform foundation and delivery pipeline | PRISM-S 4, 6, 7, 12 | NFR availability, scalability
+E-02 | Identity, consent and privacy | PRISM-S 5.2, 5.3 | FR-01, FR-02, FR-03, FR-25
+E-03 | Reference data and admin | PRISM-S 5.5 | FR-10, FR-19
+E-04 | Bill ingestion and extraction | PRISM-S 5.4 | FR-04 to FR-07, FR-23
+E-05 | Appliance profile | PRISM-S 5.7 | FR-08
+E-06 | Cost engine and analysis orchestration | PRISM-S 5.6, 5.14 | FR-11, FR-12, FR-26
+E-07 | Forecast and anomaly detection | PRISM-S 5.8, 5.9 | FR-13, FR-14, FR-26
+E-08 | Consumption breakdown and benchmark | PRISM-S 5.10, 5.11 | FR-15, FR-16
+E-09 | Recommendations and ROI | PRISM-S 5.12 | FR-17 to FR-21, FR-27
+E-10 | Client application | PRISM-S 5.1 | FR-02 to FR-08, FR-12 to FR-25 (screens)
+E-11 | Reporting | PRISM-S 5.13 | FR-24
+E-12 | Events, metrics and observability | PRISM-S 5.16, 9 | FR-27, NFR observability
+E-13 | Quality, evaluation and pilot | PRISM-S 11 | All FRs, NFRs
+E-14 | Documentation and final delivery | PRISM-S 12 | Delivery
+E-15 | Smart meter adapter (optional stretch) | PRISM-S 5.15 | FR-09
+Story | Epic | User or team story | Tasks
+S-01 | E-01 | As a developer, I can build, lint and test the project from a clean clone with module boundaries enforced | T-01, T-02
+S-02 | E-01 | As a team, we can deploy to staging and production with approval and rollback | T-03, T-04
+S-03 | E-01 | As a developer, I have a database schema, job worker, feature flags, and shared API behaviour (errors, idempotency, rate limits) | T-05, T-06, T-07, T-08
+S-04 | E-01 | As a frontend developer, I can build against an API contract and mock server before the backend is ready | T-14
+S-05 | E-02 | As a user, I can sign in and see only my own data | T-09, T-10
+S-06 | E-02 | As a user, I can set my profile and am told if my provider or tariff category is not supported | T-11
+S-07 | E-02 | As a user, I give or withdraw consent before any data is processed | T-12, K1
+S-08 | E-02 | As a user, I can delete my data and account | T-13
+S-09 | E-03 | As the analyst, I have versioned reference data with dates and sources | R1, R2
+S-10 | E-03 | As the analyst, I source and verify tariff, subsidy, price and benchmark data and golden test cases | R3, R4, R5, G1
+S-11 | E-03 | As an analyst or user, I can maintain and view reference data and its freshness | R6, R7
+S-12 | E-04 | As a user, I can upload a bill safely | I2, I3
+S-13 | E-04 | As the team, we choose an extraction engine based on evidence | I1, I0, I4, I5
+S-14 | E-04 | As a user, my bill fields are mapped and validated without storing identity details | I6, I7
+S-15 | E-04 | As a user, I can review, correct and confirm my bill, or enter it manually | I8, I9
+S-16 | E-04 | As a user, I can compare two bills | I10
+S-17 | E-05 | As a user, I can declare my appliances and usage | A1
+S-18 | E-06 | As a user, I see my cost calculated from the tariff | C1
+S-19 | E-06 | As a user, I get up-to-date analysis stored as consistent snapshots | C2, C3
+S-20 | E-07 | As a user, I see a forecast with confidence that is withheld when data is too thin | F0, F1, F2, F6
+S-21 | E-07 | As a user, I see how accurate last month's forecast was | F3
+S-22 | E-07 | As a user, I am alerted to unusual spikes with a likely cause | F4, F5
+S-23 | E-08 | As a user, I see where my electricity goes by category | B1
+S-24 | E-08 | As a user, I see how I compare with similar households | B2
+S-25 | E-09 | As a user, I see only applicable options, each with a transparent savings model | M1, M2a, M2b
+S-26 | E-09 | As a user, I see subsidies applied, ranges, payback, long-term savings and ranking | M3, M4
+S-27 | E-09 | As a user, I can list, open, compare and mark recommendations through the API and the analysis run | M5, M6
+S-28 | E-10 | As a user, I get a consistent, responsive interface with estimate labelling built in | U0, U1
+S-29 | E-10 | As a user, I can sign up, set my profile and give consent on screen | U2, U3
+S-30 | E-10 | As a user, I can upload, review and confirm a bill on screen | U4, U5
+S-31 | E-10 | As a user, I can enter appliances on screen | U6
+S-32 | E-10 | As a user, I see a dashboard of my history, forecast, alerts, breakdown and benchmark | U7a, U7b
+S-33 | E-10 | As a user, I can view and compare recommendations and bills | U8, U9a, U9b
+S-34 | E-10 | As a user, I can get my report and delete my data, and I get clear help and messages | U10, U11, K2
+S-35 | E-11 | As a user, I can download a report that matches my screen | P1, P2
+S-36 | E-12 | As an operator, I have safe logs, metrics and alerts | O1, O2
+S-37 | E-12 | As the business, we can measure the success metrics | O3
+S-38 | E-13 | As the team, we have a test harness and integration suites | Q1, Q2, Q3, Q4, Q5
+S-39 | E-13 | As the team, we verify end-to-end behaviour, accuracy, load and security | Q6a, Q6b, Q7, Q8, Q9
+S-40 | E-13 | As the business, we run a pilot with real users | K3, Q11
+S-41 | E-14 | As a maintainer, I have API docs, an evaluation report, and a runbook | D1, D2, D3
+S-42 | E-14 | As a stakeholder, I see a final presentation and demo | D4
+S-43 | E-15 | As a user with a supported provider, I can connect smart meter data (optional) | SM1
+Task | Description | Files / components | Acceptance criteria | Test type | Depends on | Owner · size · weeks
+T-01 | Repository scaffolding: backend app with module packages and core, frontend app, infra and docs folders; lint, format, type-check, pre-commit; module-boundary check | backend/, frontend/, infra/, docs/, pyproject.toml, package.json | A fresh clone builds and runs the test command green; a boundary check fails the build if a module imports another module's models or repository instead of its service interface | unit | None | BE1 · 2d · W1
+T-02 | CI pipeline: lint, unit tests, integration tests with a Postgres service, container build, image scan | ci/ | Every pull request runs all steps; a failing step blocks merge; pipeline completes in under 10 minutes | integration | T-01 | BE2 · 2d · W1
+T-03 | Provision staging as code: container service, Postgres 15, private encrypted bucket, secret store, TLS domain, identity provider tenant | infra/staging/ | Health check served over TLS; bucket is private; database not publicly reachable; no secrets in the repository; environment can be recreated from the code | integration | T-01 | BE1 · 3d · W1
+T-04 | Production environment and CD: manual approval, post-deploy smoke test, rollback rehearsal | infra/prod/, ci/deploy | Promotion needs approval; smoke test (sign-in, health, seeded bill) passes; rollback to the previous image is rehearsed and takes under 15 minutes | integration | T-03, T-02 | BE1 · 2d · W5
+T-05 | Baseline Alembic migration for every entity in PRISM-S Section 6, with constraints and indexes | backend/migrations/, modules/*/models.py | Upgrade works on an empty database; downgrade of the last step is tested; unique rules (bill per user and period, snapshot input hash) and listed indexes exist; money is numeric(12,2) | integration | T-01 | BE3 · 3d · W1
+T-06 | Jobs table and worker: row-lock claiming, 3 retries with growing delay, reclaim after 10 minutes, cancellation by user, job type registry | modules/orchestration/jobs.py, worker.py | Two workers never run the same job; a failing job is retried 3 times then marked failed with an error code; a job running over 10 minutes is reclaimed; queued jobs for a user can be cancelled | integration | T-05 | BE3 · 2d · W2
+T-07 | Configuration and the six feature flags from PRISM-S Section 12 with 60-second cache | core/config.py, core/flags.py | A flag change takes effect within 60 seconds without redeploy; defaults match PRISM-S Section 12; an unknown flag stops startup | unit | T-01 | BE3 · 1d · W2
+T-08 | Shared API behaviour: problem+json errors with codes, request ID, Idempotency-Key handling (24-hour replay), rate limits, pagination helpers | core/errors.py, core/idempotency.py, core/ratelimit.py | A repeated POST with the same key returns the stored response with no new side effects; same key with a different body returns IDEMPOTENCY_KEY_REUSED; the 61st request in a minute returns 429 with Retry-After; every error carries code and request_id | integration | T-05 | BE1 · 2d · W2
+T-14 | OpenAPI contract for every PRISM-S Section 7 endpoint and a mock server with example responses, including error cases | backend/openapi/v1.yaml, tools/mock-server/ | The spec validates; the mock returns an example for every endpoint and every error code in Section 7; the frontend runs fully against it | unit | T-01 | BE2 · 2d · W3–W4
+Task | Description | Files / components | Acceptance criteria | Test type | Depends on | Owner · size · weeks
+T-09 | Token validation, user creation on first sign-in, GET /me, roles user and analyst | modules/identity/ | A valid token creates the user once; expired, forged or wrong-audience tokens return 401; the analyst role gets 403 on user data endpoints | integration | T-05, T-03 | BE1 · 2d · W2
+T-10 | Ownership layer: repository base that requires user_id, plus a harness proving cross-user isolation | core/repository.py, tests/security/ | A user-owned query without user_id cannot be constructed; an automated test (routes read from the route table) proves each user-owned endpoint returns 404 for another user's IDs | integration | T-09 | BE1 · 2d · W3
+T-11 | PUT /me/profile with validation of user type, provider, tariff category, household size, district, load, rooftop answer | modules/identity/profile.py | An unsupported provider or category returns 422 UNSUPPORTED_*; a valid profile is saved and profile_version increases | integration | T-09, R1 | BE1 · 1d · W3
+T-12 | Consent endpoints and consent gate with policy version | modules/consent/ | Upload, manual entry and smart meter connection return 403 CONSENT_REQUIRED without active consent; a consent row records purpose, policy version and time; withdrawal sets withdrawn_at and offers deletion | integration | T-09 | BE1 · 2d · W3
+K1 | Draft consent text and privacy notice (names the extraction service, retention, backup ageing, deletion rights, grievance contact) for review | docs/legal/consent-v1.md | The text names the third-party service and its purpose, states retention and backup ageing, and is reviewed by the Decision Owner; version v1 assigned | review | None | BA · 1d · W4
+T-13 | Deletion framework: DELETE /me, deletion job, hook registry (delete_user_data), completeness verifier, identity provider deletion, audit entry | modules/privacy/deletion.py | After deletion the verifier finds zero rows and files for the user in every registered table and bucket prefix; later requests return 404; pending jobs are cancelled first; the audit entry has no personal data; a registry test fails if a user-owned table has no hook | integration | T-06, T-12, I8, A1 | BE1 · 3d · W5
+Task | Description | Files / components | Acceptance criteria | Test type | Depends on | Owner · size · weeks
+R1 | Reference data service: effective-dated queries, reference_version hash, staleness at 100 days | modules/reference/service.py | An as-of query returns the version effective that day; changing any row changes reference_version; a dataset reviewed more than 100 days ago is flagged stale | unit | T-05 | BE2 · 2d · W2
+R2 | Idempotent seed import command with file schemas and validation | modules/reference/seed/, data/seed/ | Running the import twice creates no duplicates; a file with a slab gap, negative rate or missing source is rejected with a line-level error; one command loads staging and test databases | integration | R1 | BE2 · 2d · W2
+R3 | Source Telangana tariff categories, slabs, fixed charges, duties and surcharges with effective dates, source URL and date; mark supported categories (DQ-05, DQ-11) | data/seed/tariffs.yaml | Every row has source_url, source_date and reviewed_by; at least one household category per target provider is complete; a second person re-checks every rate against its source | review | None | BA · 3d · W1
+R4 | Source solar yield, degradation, escalation, grid emission factor, measure factors, market price ranges, subsidy rules, appliance defaults (DQ-06) | data/seed/engine_params.yaml, solutions.yaml, subsidies.yaml, appliance_catalog.yaml | Every parameter has a source and date; subsidy rules are written as eligibility plus an amount formula with caps; reviewed by a second person | review | None | BA · 3d · W3
+R5 | Source benchmark reference profiles with sample sizes (DQ-04) | data/seed/reference_profiles.yaml | Each profile has size band, area type, season, average, 25th and 75th percentile, sample size and source; if no usable source exists, the benchmark_enabled flag is set off and noted in release notes | review | None | BA · 2d · W3
+G1 | Golden test cases for cost and ROI from published tariff and worked examples | backend/tests/golden/ | At least 15 cost cases (every slab boundary, both slab modes, split period, fixed charge bases) and 6 ROI cases with expected values and a source; reviewed by a second person | review | R3, R4 | BA · 2d · W4
+R6 | Admin endpoints for tariffs, subsidies, prices and parameters with validation and audit log | modules/admin/ | An invalid slab structure is rejected; every change creates a new version and an audit row; reference_version changes; the user role gets 403 | integration | R1, T-09 | BE3 · 2d · W4
+R7 | GET /reference/tariffs and GET /reference/status | modules/reference/api.py | Each dataset in the response has source_date, reviewed_at and stale; a dataset passes to stale after 100 days | integration | R1 | BE3 · 1d · W3
+Task | Description | Files / components | Acceptance criteria | Test type | Depends on | Owner · size · weeks
+I1 | Collect sample bills from consenting volunteers with anonymised handling and ground-truth fields (DQ-02) | restricted test bucket, docs/samples-guide.md | At least 10 bills per target provider layout by end of Week 2, with a ground-truth file; the target of 30 per layout is tracked to Week 6; no real bill is stored in the repository | review | None | BA · 2d · W1 (collection continues to W6)
+I0 | Extraction engine spike: run the managed engine and open-source OCR on the samples; per-field accuracy, latency, cost per bill, region and content-use opt-out check | tools/extraction_bench/, docs/spikes/extraction-spike.md | A report gives per-field accuracy for both engines on at least 10 bills per layout, latency for a 10 MB file, and a preliminary engine recommendation for DQ-01 | benchmark | I1 | ML · 3d · W2
+I2 | File storage service: private upload, SHA-256, signed URLs (10 minutes), delete_after removal | modules/bills/storage.py | An object cannot be read without a signed URL; the URL expires; files past delete_after are removed by a job; hash stored | integration | T-05 | BE2 · 2d · W2–W3
+I3 | POST /bills/uploads with consent gate, file signature check, 10 MB and 5-page limits, encrypted-PDF rejection, duplicate-hash detection, idempotency, rate limit | modules/bills/api.py, upload_checks.py | An executable renamed .pdf returns 415; 11 MB returns 413; an encrypted PDF returns 400 with a clear message; the same file twice returns 409 DUPLICATE_BILL; no consent returns 403; success returns 202 with an extraction job | integration | I2, T-12, T-08 | BE1 · 2d · W4
+I4 | Extractor interface, managed-engine adapter, open-source adapter, extraction job handler with retries and the extraction_engine flag | modules/extraction/ | Both adapters return fields with per-field confidence from recorded responses; an engine failure is retried 3 times then marked failed; manual-only skips the engine; the engine is switchable by flag alone | integration | T-06, T-07 | BE2 · 3d · W3
+I5 | Full engine benchmark and decision per provider layout; cost per 100 bills; confirm or change the flag default (closes DQ-01) | docs/decisions/extraction-engine.md | The decision record lists accuracy per field and layout, 95th-percentile latency and cost per 100 bills; flag defaults updated; approved by the tech lead | benchmark | I0, I4, I1 | ML · 2d · W4
+I6 | Field mapper with per-provider label dictionaries as data, and discarding of name, address and consumer number | modules/extraction/mapper.py, data/providers/*.yaml | Canonical fields are produced from recorded responses for each layout; a test proves identity fields never reach the database or logs; a new layout needs only a data file | unit | I4 | BE2 · 3d · W4
+I7 | Validation rules, field status logic (read, unread, corrected, completed; 0.90 configurable threshold) and cost consistency check | modules/bills/validation.py | Rules in PRISM-S Section 5.4 are enforced; statuses are assigned by threshold and validation; a more than 10% variance with the calculated cost is flagged but does not block; unsupported provider or category returns 422 | unit | C1, I2 | BE3 · 2d · W3
+I8 | Bill review APIs: get bill, correct fields, manual entry, confirm (gating, low-confidence flag, duplicate by values, starts analysis job), delete | modules/bills/api.py, service.py | Confirm returns 409 BILL_NOT_CONFIRMABLE while a required field is unread; any completed field or manual source sets confidence=low; a duplicate period returns 409; confirm creates exactly one analysis job; delete removes the bill and its file | integration | I6, I7 | BE2 · 3d · W4–W5
+I9 | GET /bills (paginated) and bill detail with signed file URL and cost check | modules/bills/api.py | Bills are ordered by period; another user's bill returns 404; detail includes cost_check | integration | I8 | BE2 · 1d · W5
+I10 | GET /bills/compare | modules/bills/compare.py | Two own bills return units, cost, difference and percent; a foreign or missing bill returns 404; the same bill twice returns 400 | integration | I8 | BE2 · 1d · W6
+Task | Description | Files / components | Acceptance criteria | Test type | Depends on | Owner · size · weeks
+A1 | Appliance create, read, update, delete with catalog defaults, validation (hours 0 to 24, quantity 1 to 50), profile_version bump and change timestamps | modules/appliances/ | A saved appliance appears in the profile and can be edited or removed; blank watts use the catalog default; invalid hours or quantity return 400; every change bumps profile_version and records a timestamp | integration | T-10 | BE1 · 2d · W4
+Task | Description | Files / components | Acceptance criteria | Test type | Depends on | Owner · size · weeks
+C1 | Cost Engine as pure functions: telescopic and whole-quantity slabs, fixed charge bases, other charges, tariff split across versions, rounding | modules/cost/engine.py | All golden cost cases from G1 match to the paisa; a split-period case lists both tariffs; the same inputs and reference_version give the same output | unit | R1 | BE3 · 3d · W2–W3
+C2 | Analysis orchestrator: step order, input_hash idempotency, single-transaction snapshot, triggers (bill confirm, appliance change debounced 60 seconds, manual refresh, reference version change) | modules/orchestration/analysis.py | The same inputs give one snapshot; two simultaneous runs give one snapshot; a failing step leaves the previous snapshot untouched and marks the run failed; a reference change recomputes on next view with an "updating" marker | integration | T-06, C1 | BE3 · 3d · W4
+C3 | GET /analysis/latest and POST /analysis/runs, with data dates and confidence in the payload | modules/orchestration/api.py | The payload for 36 months is under 500 KB and includes reference_version and as_of; reads do not recompute (one indexed query); a refresh is idempotent by input hash | integration | C2 | ML · 2d · W5

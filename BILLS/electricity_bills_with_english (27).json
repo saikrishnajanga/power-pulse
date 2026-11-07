@@ -1,0 +1,42 @@
+{
+  "record_count": 1,
+  "records": [
+    {
+      "record_id": "BILL_0001",
+      "file_name": "bill-1 (1).jpg",
+      "identifier": "bill-1 (1)",
+      "original_ocr_text": "Contracted Load: 1.201044\n(11.77೦: 29543604010)\nMf? 1,80 Phil\n\nDATE STS READING\n75:01/03/24 61 12722\n5: 07/82/24 81 12574\nUnits: 148 Days? 23\nAvs Monthly Units: 187\nRecorded MD: 1.66\n\nEnergy Chardes: 599 , 88\n\nFixed Charges: 16,68\nCust Charges ६ 30.00\nElectrici Duty: 8, 88\nInterest. on ₹0: 0.00\nSurcharges : 8,98\nFSAZVFCA Charges 8.88\nInterest on CB 4, 88\nLoss/Gain ಃ 8\n\nBill Amount 1. గట\nGJS Subsidy గటి\nNet [౧0101 ಕ|]\nArrearsi- ದ\n\nవ...\nJotal Due 1 [|]\n\n| lpract ಸೂ through",
+      "source_language": "Telugu",
+      "english_translation": "Contracted Load: 1.201044\n(11.770: 29543604010)\nMf? 1,80 Phil\n\nDATE STS READING\n75:01/03/24 61 12722\n5: 07/82/24 81 12574\nUnits: 148 Days? 23\nAvs Monthly Units: 187\nRecorded MD: 1.66\n\nEnergy Chardes: 599 , 88\n\nFixed Charges: 16,68\nCust Charges 6 30.00\nElectrici Duty: 8, 88\nInterest. on ₹0: 0.00\nSurcharges : 8,98\nFSAZVFCA Charges 8.88\nInterest on CB 4, 88\nLoss/Gain 8\n\nBill Amount 1.\nGJS Subsidy\nNet [10101 Ka|]\nArrearsi- Da\n\nVa...\nJotal Due 1 [|]\n\nlpract through",
+      "translation_status": "success",
+      "electricity_provider": null,
+      "consumer_number": null,
+      "customer_id": null,
+      "service_connection_number": null,
+      "customer_name": null,
+      "address": null,
+      "bill_number": null,
+      "bill_date": null,
+      "bill_month": null,
+      "due_date": null,
+      "meter_number": null,
+      "units_consumed": 148.0,
+      "current_bill_amount": 1.0,
+      "previous_balance": null,
+      "late_fee": null,
+      "subsidy": null,
+      "net_bill_amount": null,
+      "total_amount_due": 1.0,
+      "last_payment_date": null,
+      "last_payment_amount": null,
+      "manual_review_required": true,
+      "review_flags": [
+        "Total amount due was calculated (current + previous + late fee), not read directly. Verify.",
+        "Provider not confidently identified from OCR.",
+        "No customer/account identifier confidently extracted."
+      ],
+      "customer_name_english": null,
+      "address_english": null
+    }
+  ]
+}
