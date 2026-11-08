@@ -5,9 +5,8 @@ and shape metrics from Zoheba notebook (Cell 9).
 """
 import numpy as np
 import pandas as pd
-from typing import List, Optional
+from typing import List, Optional, Any
 from datetime import datetime
-from sklearn.ensemble import IsolationForest
 
 from .models import AnomalyPoint, AnomalySummary
 from ...core.config import settings
@@ -17,11 +16,17 @@ class AnomalyDetector:
     def __init__(self, contamination: Optional[float] = None, n_estimators: Optional[int] = None):
         self.contamination = contamination or settings.ANOMALY_CONTAMINATION
         self.n_estimators = n_estimators or settings.ANOMALY_N_ESTIMATORS
-        self.model = IsolationForest(
-            n_estimators=self.n_estimators,
-            contamination=self.contamination,
-            random_state=42,
-        )
+        self.model: Optional[Any] = None
+
+    def _get_model(self):
+        if self.model is None:
+            from sklearn.ensemble import IsolationForest
+            self.model = IsolationForest(
+                n_estimators=self.n_estimators,
+                contamination=self.contamination,
+                random_state=42,
+            )
+        return self.model
 
     def analyze(self, timestamps: List[datetime], readings_kwh: List[float]) -> AnomalySummary:
         """
@@ -44,8 +49,9 @@ class AnomalyDetector:
         X = df[feature_cols].copy()
 
         # Train & predict
-        self.model.fit(X)
-        predictions = self.model.predict(X)
+        model = self._get_model()
+        model.fit(X)
+        predictions = model.predict(X)
 
         df["Anomaly"] = predictions == -1
         df["Status"] = np.where(df["Anomaly"], "Abnormal", "Normal")

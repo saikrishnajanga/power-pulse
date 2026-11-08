@@ -3,12 +3,10 @@ Forecasting Engine with XGBoost & Dynamic MAD Spike Detection.
 Directly adapts Saikrishna notebook (Cells 33, 34, 40) with clean object-oriented design
 and tariff integration.
 """
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
-from xgboost import XGBRegressor
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 from .models import ForecastResponse, HourlyForecastPoint, ModelMetrics
 from .features import FEATURE_COLUMNS, TELANGANA_HOLIDAYS
@@ -26,13 +24,15 @@ class ForecastingEngine:
         self.n_estimators = n_estimators or settings.FORECAST_N_ESTIMATORS
         self.max_depth = max_depth or settings.FORECAST_MAX_DEPTH
         self.learning_rate = learning_rate or settings.FORECAST_LEARNING_RATE
-        self.model: Optional[XGBRegressor] = None
+        self.model: Optional[Any] = None
         self.is_trained: bool = False
 
     def train(self, X_train: pd.DataFrame, y_train: pd.Series) -> None:
         """
         Trains XGBoost regressor on feature matrix.
         """
+        from xgboost import XGBRegressor
+
         self.model = XGBRegressor(
             n_estimators=self.n_estimators,
             max_depth=self.max_depth,
@@ -50,6 +50,8 @@ class ForecastingEngine:
         """
         if not self.is_trained or self.model is None:
             raise ValueError("Model must be trained before evaluation.")
+
+        from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
         y_pred = self.model.predict(X_test[FEATURE_COLUMNS])
         mae = float(mean_absolute_error(y_test, y_pred))

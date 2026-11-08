@@ -5,10 +5,6 @@ Generates an executive PDF report matching on-screen energy analysis.
 """
 import io
 from datetime import datetime
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib import colors
 
 
 def generate_energy_audit_pdf(
@@ -22,6 +18,10 @@ def generate_energy_audit_pdf(
     solar_payback_years: float = 3.2,
     top_appliance: str = "Air Conditioning (HVAC)",
 ) -> io.BytesIO:
+    from reportlab.lib.pagesizes import letter
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib import colors
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
