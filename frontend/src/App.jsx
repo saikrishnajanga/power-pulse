@@ -52,7 +52,7 @@ import {
   Legend
 } from 'recharts';
 
-const API_BASE = 'http://localhost:8000/api/v1';
+const API_BASE = '/api/v1';
 
 // Initial Mock/Fallback Data in case backend is offline
 const INITIAL_TARIFF = {
@@ -154,7 +154,7 @@ export default function App() {
   const checkHealthAndFetch = async () => {
     try {
       setLoading(true);
-      const res = await fetch('http://localhost:8000/api/v1/health');
+      const res = await fetch(`${API_BASE}/health`);
       if (res.ok) {
         setBackendOnline(true);
         // Fetch demo forecast
