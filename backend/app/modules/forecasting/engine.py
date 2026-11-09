@@ -103,29 +103,28 @@ class ForecastingEngine:
         thresholds: List[float] = []
 
         last_time = history.index[-1]
+        hist_vals = list(history.values.astype(float))
+        feat_buf = np.empty((1, 11), dtype=np.float32)
 
         for _ in range(horizon_hours):
             next_time = last_time + timedelta(hours=1)
             is_hol = 1 if next_time.date() in TELANGANA_HOLIDAYS else 0
 
-            # Exact feature order
-            feat_dict = {
-                "lag_1": float(history.iloc[-1]),
-                "lag_2": float(history.iloc[-2]),
-                "lag_3": float(history.iloc[-3]),
-                "lag_24": float(history.iloc[-24]),
-                "lag_168": float(history.iloc[-168]),
-                "rolling_mean_24": float(history.iloc[-24:].mean()),
-                "rolling_mean_168": float(history.iloc[-168:].mean()),
-                "hour": next_time.hour,
-                "day_of_week": next_time.dayofweek,
-                "month": next_time.month,
-                "is_holiday": is_hol,
-            }
-            features_df = pd.DataFrame([feat_dict])[FEATURE_COLUMNS]
+            # Exact feature order: lag_1, lag_2, lag_3, lag_24, lag_168, rolling_mean_24, rolling_mean_168, hour, day_of_week, month, is_holiday
+            feat_buf[0, 0] = hist_vals[-1]
+            feat_buf[0, 1] = hist_vals[-2]
+            feat_buf[0, 2] = hist_vals[-3]
+            feat_buf[0, 3] = hist_vals[-24]
+            feat_buf[0, 4] = hist_vals[-168]
+            feat_buf[0, 5] = sum(hist_vals[-24:]) / 24.0
+            feat_buf[0, 6] = sum(hist_vals[-168:]) / 168.0
+            feat_buf[0, 7] = next_time.hour
+            feat_buf[0, 8] = next_time.dayofweek
+            feat_buf[0, 9] = next_time.month
+            feat_buf[0, 10] = is_hol
 
-            # Next-hour prediction
-            prediction = float(self.model.predict(features_df)[0])
+            # Lightning-fast next-hour prediction
+            prediction = float(self.model.predict(feat_buf)[0])
             prediction = max(0.01, prediction)  # Ensure non-negative and minimum standby
 
             # Dynamic MAD threshold calculation: median + 3 * 1.4826 * MAD
@@ -140,7 +139,7 @@ class ForecastingEngine:
             thresholds.append(round(threshold, 3))
 
             # Roll prediction forward into history for next iteration
-            history.loc[next_time] = prediction
+            hist_vals.append(prediction)
             last_time = next_time
 
         # Build seamless continuous timeline:

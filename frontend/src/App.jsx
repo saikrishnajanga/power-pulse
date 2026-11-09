@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Zap,
   TrendingUp,
@@ -88,6 +88,8 @@ export default function App() {
   // Forecast state
   const [forecastPeriod, setForecastPeriod] = useState('weekly');
   const [forecastData, setForecastData] = useState(null);
+  const [forecastLoading, setForecastLoading] = useState(false);
+  const [forecastViewMode, setForecastViewMode] = useState('daily'); // 'daily' | 'hourly'
 
   // Tariff calculator state - Regional & Location-Based (Telangana & Andhra Pradesh)
   const [selectedState, setSelectedState] = useState('Telangana'); // 'Telangana' | 'Andhra Pradesh'
@@ -127,6 +129,7 @@ export default function App() {
   // Dedicated fast forecast fetcher - eliminates delayed/static updates
   const fetchForecast = async (period = forecastPeriod, units = inputUnits) => {
     try {
+      setForecastLoading(true);
       const res = await fetch(`${API_BASE}/forecast/demo?period=${period}&monthly_kwh=${Number(units)}`);
       if (res.ok) {
         const json = await res.json();
@@ -134,6 +137,8 @@ export default function App() {
       }
     } catch (err) {
       console.warn("Forecast fetch failed:", err);
+    } finally {
+      setForecastLoading(false);
     }
   };
 
@@ -166,10 +171,10 @@ export default function App() {
   // Appliance Solar Alternatives State (User Requested Flow)
   const [applianceSolarData, setApplianceSolarData] = useState(null);
 
-  // Check backend health and load data
+  // Check backend health and load data on initial mount
   useEffect(() => {
     checkHealthAndFetch();
-  }, [forecastPeriod, inputUnits]);
+  }, []);
 
   const checkHealthAndFetch = async () => {
     try {
@@ -177,12 +182,6 @@ export default function App() {
       const res = await fetch(`${API_BASE}/health`);
       if (res.ok) {
         setBackendOnline(true);
-        // Fetch demo forecast
-        const fRes = await fetch(`${API_BASE}/forecast/demo?period=${forecastPeriod}`);
-        if (fRes.ok) {
-          const fJson = await fRes.json();
-          setForecastData(fJson);
-        }
         // Fetch recommendations
         const rRes = await fetch(`${API_BASE}/recommendations`, {
           method: 'POST',
@@ -525,6 +524,89 @@ export default function App() {
       console.error(err);
     }
   };
+
+  // Prepare clean, uncluttered, intuitive chart data based on forecastPeriod & forecastViewMode
+  const formattedForecastPoints = useMemo(() => {
+    if (!forecastData || !forecastData.points || forecastData.points.length === 0) return [];
+
+    if (forecastPeriod === 'weekly') {
+      return forecastData.points.map((pt) => {
+        let label = pt.timestamp;
+        if (typeof pt.timestamp === 'string' && pt.timestamp.includes('T')) {
+          const parts = pt.timestamp.split('T');
+          const timePart = parts[1].substring(0, 5);
+          const d = new Date(pt.timestamp);
+          const dayName = isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US', { weekday: 'short' });
+          label = `${dayName} ${timePart}`;
+        }
+        return {
+          ...pt,
+          displayLabel: label,
+        };
+      });
+    }
+
+    // Monthly view
+    if (forecastViewMode === 'daily') {
+      // Aggregate into 30 daily totals for crystal-clear readability
+      const dailyMap = {};
+      forecastData.points.forEach(pt => {
+        const dStr = typeof pt.timestamp === 'string' && pt.timestamp.includes('T') ? pt.timestamp.split('T')[0] : 'Day';
+        if (!dailyMap[dStr]) {
+          const d = new Date(dStr);
+          const dayLabel = isNaN(d.getTime()) ? dStr : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' });
+          dailyMap[dStr] = {
+            timestamp: dStr,
+            displayLabel: dayLabel,
+            actual_kwh: 0,
+            predicted_kwh: 0,
+            has_actual: false,
+            has_predicted: false,
+            spike_threshold_kwh: 0,
+            potential_spike: false,
+          };
+        }
+        if (pt.actual_kwh !== null && pt.actual_kwh !== undefined) {
+          dailyMap[dStr].actual_kwh += pt.actual_kwh;
+          dailyMap[dStr].has_actual = true;
+        }
+        if (pt.predicted_kwh !== null && pt.predicted_kwh !== undefined) {
+          dailyMap[dStr].predicted_kwh += pt.predicted_kwh;
+          dailyMap[dStr].has_predicted = true;
+        }
+        if (pt.potential_spike) {
+          dailyMap[dStr].potential_spike = true;
+        }
+        dailyMap[dStr].spike_threshold_kwh += (pt.spike_threshold_kwh || 0);
+      });
+
+      return Object.values(dailyMap).map(d => ({
+        timestamp: d.timestamp,
+        displayLabel: d.displayLabel,
+        actual_kwh: d.has_actual ? +(d.actual_kwh).toFixed(2) : null,
+        predicted_kwh: d.has_predicted ? +(d.predicted_kwh).toFixed(2) : null,
+        spike_threshold_kwh: +(d.spike_threshold_kwh).toFixed(2),
+        potential_spike: d.potential_spike,
+        point_type: d.has_actual && !d.has_predicted ? 'actual' : (d.has_actual && d.has_predicted ? 'transition' : 'predicted'),
+        isDaily: true,
+      }));
+    }
+
+    // Monthly hourly: sampled every 3 hours for zero visual clutter
+    return forecastData.points.filter((_, idx) => idx % 3 === 0).map(pt => {
+      let label = pt.timestamp;
+      if (typeof pt.timestamp === 'string' && pt.timestamp.includes('T')) {
+        const parts = pt.timestamp.split('T');
+        const d = new Date(pt.timestamp);
+        const dayStr = isNaN(d.getTime()) ? parts[0].slice(5) : d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
+        label = `${dayStr} ${parts[1].substring(0, 5)}`;
+      }
+      return {
+        ...pt,
+        displayLabel: label,
+      };
+    });
+  }, [forecastData, forecastPeriod, forecastViewMode]);
 
   return (
     <div className="dashboard-container">
@@ -945,124 +1027,224 @@ export default function App() {
       {activeTab === 'forecast' && (
         <section>
           <div className="glass-card" style={{ marginBottom: '24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
               <div>
-                <h2 style={{ fontSize: '18px', fontWeight: '700' }}>Autoregressive Time-Series Forecast</h2>
-                <p style={{ fontSize: '13px', color: '#9ca3af' }}>
-                  XGBoost model with 168-hour lags, Indian/Telangana calendar holidays & Open-Meteo CDD weather
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <h2 style={{ fontSize: '18px', fontWeight: '700' }}>Autoregressive Time-Series Forecast</h2>
+                  <span className="badge badge-emerald">XGBoost ML</span>
+                  {forecastLoading && <span className="badge badge-cyan">Updating...</span>}
+                </div>
+                <p style={{ fontSize: '13px', color: '#9ca3af', marginTop: '2px' }}>
+                  Autoregressive multi-step demand forecasting calibrated for Indian domestic households & weather
                 </p>
               </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
+
+              {/* Weekly / Monthly Toggle Buttons */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <button
                   className={forecastPeriod === 'weekly' ? 'btn-primary' : 'btn-secondary'}
-                  onClick={() => setForecastPeriod('weekly')}
-                  style={{ fontSize: '13px', padding: '6px 14px' }}
+                  onClick={() => {
+                    setForecastPeriod('weekly');
+                    fetchForecast('weekly', inputUnits);
+                  }}
+                  disabled={forecastLoading}
+                  style={{
+                    fontSize: '13px',
+                    padding: '8px 16px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    background: forecastPeriod === 'weekly' ? '#10b981' : '#1f293d',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    boxShadow: forecastPeriod === 'weekly' ? '0 0 12px rgba(16, 185, 129, 0.4)' : 'none'
+                  }}
                 >
-                  Weekly (7 Days)
+                  📅 Weekly (7 Days)
                 </button>
                 <button
                   className={forecastPeriod === 'monthly' ? 'btn-primary' : 'btn-secondary'}
-                  onClick={() => setForecastPeriod('monthly')}
-                  style={{ fontSize: '13px', padding: '6px 14px' }}
+                  onClick={() => {
+                    setForecastPeriod('monthly');
+                    fetchForecast('monthly', inputUnits);
+                  }}
+                  disabled={forecastLoading}
+                  style={{
+                    fontSize: '13px',
+                    padding: '8px 16px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    background: forecastPeriod === 'monthly' ? '#10b981' : '#1f293d',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    boxShadow: forecastPeriod === 'monthly' ? '0 0 12px rgba(16, 185, 129, 0.4)' : 'none'
+                  }}
                 >
-                  Monthly (30 Days)
+                  🗓️ Monthly (30 Days)
                 </button>
               </div>
             </div>
 
+            {/* Sub-selector for Monthly Granularity */}
+            {forecastPeriod === 'monthly' && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(15, 23, 42, 0.8)', borderRadius: '8px', marginBottom: '18px', border: '1px solid #1f293d' }}>
+                <span style={{ fontSize: '12px', color: '#9ca3af' }}>
+                  Monthly Graph Display Mode:
+                </span>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={() => setForecastViewMode('daily')}
+                    style={{
+                      fontSize: '11px',
+                      padding: '4px 12px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      border: 'none',
+                      background: forecastViewMode === 'daily' ? '#06b6d4' : '#111827',
+                      color: forecastViewMode === 'daily' ? '#0b0f19' : '#9ca3af',
+                      fontWeight: '700'
+                    }}
+                  >
+                    ✓ Daily Totals (30 Days Clean View)
+                  </button>
+                  <button
+                    onClick={() => setForecastViewMode('hourly')}
+                    style={{
+                      fontSize: '11px',
+                      padding: '4px 12px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      border: 'none',
+                      background: forecastViewMode === 'hourly' ? '#06b6d4' : '#111827',
+                      color: forecastViewMode === 'hourly' ? '#0b0f19' : '#9ca3af',
+                      fontWeight: '700'
+                    }}
+                  >
+                    Hourly Detailed Curve
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Forecast Metrics Bar */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', padding: '16px', background: '#0b0f19', borderRadius: '12px', marginBottom: '24px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', padding: '16px', background: '#0b0f19', borderRadius: '12px', marginBottom: '20px' }}>
               <div>
                 <span style={{ fontSize: '12px', color: '#9ca3af' }}>Total Projected Energy</span>
-                <div style={{ fontSize: '20px', fontWeight: '700', color: '#f9fafb' }}>
-                  {forecastData?.total_predicted_kwh || '77.01'} <span style={{ fontSize: '13px' }}>kWh</span>
+                <div style={{ fontSize: '22px', fontWeight: '800', color: '#f9fafb' }}>
+                  {forecastData?.total_predicted_kwh || '77.01'} <span style={{ fontSize: '13px', fontWeight: '400' }}>kWh</span>
                 </div>
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>
+                  {forecastPeriod === 'weekly' ? 'Next 7 Days Total' : 'Next 30 Days Total'}
+                </span>
               </div>
               <div>
                 <span style={{ fontSize: '12px', color: '#9ca3af' }}>Estimated Energy Charge</span>
-                <div style={{ fontSize: '20px', fontWeight: '700', color: '#10b981' }}>
+                <div style={{ fontSize: '22px', fontWeight: '800', color: '#10b981' }}>
                   ₹{forecastData?.estimated_cost_inr || '261.83'}
                 </div>
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>Calculated via active tariff slabs</span>
               </div>
               <div>
                 <span style={{ fontSize: '12px', color: '#9ca3af' }}>Spikes Flagged (Dynamic MAD)</span>
-                <div style={{ fontSize: '20px', fontWeight: '700', color: (forecastData?.potential_spike_count || 0) > 0 ? '#f43f5e' : '#34d399' }}>
+                <div style={{ fontSize: '22px', fontWeight: '800', color: (forecastData?.potential_spike_count || 0) > 0 ? '#f43f5e' : '#34d399' }}>
                   {forecastData?.potential_spike_count ?? 0}
                 </div>
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>High consumption alerts</span>
               </div>
               <div>
                 <span style={{ fontSize: '12px', color: '#9ca3af' }}>Confidence Interval</span>
-                <div style={{ fontSize: '20px', fontWeight: '700', color: '#06b6d4' }}>95% ± 0.40 kWh</div>
+                <div style={{ fontSize: '22px', fontWeight: '800', color: '#06b6d4' }}>95% ± 0.40 kWh</div>
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>Autoregressive error bound</span>
+              </div>
+            </div>
+
+            {/* Beginner-Friendly Graph Reading Guide */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', marginBottom: '18px', padding: '12px', background: 'rgba(15, 23, 42, 0.7)', borderRadius: '10px', fontSize: '11px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#06b6d4', flexShrink: 0 }}></span>
+                <span style={{ color: '#9ca3af' }}><strong style={{ color: '#06b6d4' }}>Blue Area:</strong> What you already consumed (Past 24h)</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#10b981', flexShrink: 0 }}></span>
+                <span style={{ color: '#9ca3af' }}><strong style={{ color: '#10b981' }}>Green Area:</strong> What AI predicts you will use</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ width: '14px', height: '3px', background: '#f43f5e', borderTop: '2px dashed #f43f5e', flexShrink: 0 }}></span>
+                <span style={{ color: '#9ca3af' }}><strong style={{ color: '#f43f5e' }}>Red Dotted Line:</strong> Normal safe limit (Spike ceiling)</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#34d399', boxShadow: '0 0 6px #34d399', flexShrink: 0 }}></span>
+                <span style={{ color: '#9ca3af' }}><strong style={{ color: '#34d399' }}>Zero Gap Anchor:</strong> Seamless transition right now</span>
               </div>
             </div>
 
             {/* Interactive Chart */}
-            <div style={{ height: '360px' }}>
+            <div style={{ height: '380px' }}>
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={forecastData?.points || []}>
+                <AreaChart data={formattedForecastPoints.length > 0 ? formattedForecastPoints : (forecastData?.points || [])}>
                   <defs>
                     <linearGradient id="forecastFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.45} />
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.5} />
                       <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
                     </linearGradient>
                     <linearGradient id="actualFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4} />
+                      <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.5} />
                       <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1f293d" />
                   <XAxis
-                    dataKey="timestamp"
+                    dataKey="displayLabel"
                     stroke="#6b7280"
-                    tickFormatter={(t) => {
-                      if (typeof t === 'string' && t.includes('T')) {
-                        const [d, time] = t.split('T');
-                        return `${d.slice(5)} ${time.substring(0, 5)}`;
-                      }
-                      return t;
-                    }}
+                    interval="preserveStartEnd"
+                    minTickGap={25}
+                    tick={{ fontSize: 11 }}
                   />
-                  <YAxis stroke="#6b7280" unit=" kWh" />
+                  <YAxis stroke="#6b7280" unit={forecastPeriod === 'monthly' && forecastViewMode === 'daily' ? ' kWh/d' : ' kWh'} />
                   <Tooltip
                     contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', borderRadius: '8px', fontSize: '12px' }}
                     formatter={(val, name, item) => {
                       if (val === null || val === undefined) return null;
                       const isSpk = item?.payload?.potential_spike;
-                      if (name === "Dynamic MAD Anomaly Ceiling") {
-                        return [`${Number(val).toFixed(3)} kWh (3σ Threshold)`, name];
+                      const unit = item?.payload?.isDaily ? 'kWh/day' : 'kWh';
+                      if (name === "Safe Limit Threshold") {
+                        return [`${Number(val).toFixed(2)} ${unit} (Normal Limit)`, name];
                       }
                       return [
                         <span>
-                          {Number(val).toFixed(3)} kWh {isSpk && <strong style={{ color: '#f43f5e' }}> ⚠️ Spike</strong>}
+                          {Number(val).toFixed(2)} {unit} {isSpk && <strong style={{ color: '#f43f5e' }}> ⚠️ Spike Overload</strong>}
                         </span>,
                         name
                       ];
                     }}
                     labelFormatter={(label, items) => {
                       const payload = items?.[0]?.payload;
-                      const typeLabel = payload?.point_type === 'actual' ? '🔵 Historical Baseline' : (payload?.point_type === 'transition' ? '🟢 Current Hour (Anchor - No Gap)' : '⚡ AI Forecast');
+                      const typeLabel = payload?.point_type === 'actual' 
+                        ? '🔵 Recorded History' 
+                        : (payload?.point_type === 'transition' ? '🟢 Current Hour (Anchor)' : '⚡ AI Prediction');
                       return `${label} · ${typeLabel}`;
                     }}
                   />
-                  <Area type="monotone" dataKey="actual_kwh" stroke="#06b6d4" strokeWidth={2} fillOpacity={1} fill="url(#actualFill)" name="Past Actual Baseline" connectNulls={false} />
-                  <Area type="monotone" dataKey="predicted_kwh" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#forecastFill)" name="AI Forecasted Demand" connectNulls={false} />
-                  <Line type="monotone" dataKey="spike_threshold_kwh" stroke="#f43f5e" strokeWidth={1.8} strokeDasharray="4 4" dot={false} name="Dynamic MAD Anomaly Ceiling" />
+                  <Area type="monotone" dataKey="actual_kwh" stroke="#06b6d4" strokeWidth={2.5} fillOpacity={1} fill="url(#actualFill)" name="Past Measured Usage" connectNulls={false} />
+                  <Area type="monotone" dataKey="predicted_kwh" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#forecastFill)" name="AI Predicted Demand" connectNulls={false} />
+                  <Line type="monotone" dataKey="spike_threshold_kwh" stroke="#f43f5e" strokeWidth={1.8} strokeDasharray="4 4" dot={false} name="Safe Limit Threshold" />
                   <Legend />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
 
             {/* Visual Continuity & Anchor Marker */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(6, 182, 212, 0.08)', borderRadius: '8px', border: '1px solid rgba(6, 182, 212, 0.25)', marginTop: '14px', fontSize: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(6, 182, 212, 0.08)', borderRadius: '8px', border: '1px solid rgba(6, 182, 212, 0.25)', marginTop: '14px', fontSize: '12px', flexWrap: 'wrap', gap: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#06b6d4' }}></span>
-                <span style={{ color: '#06b6d4', fontWeight: '600' }}>Past 24h Baseline (Cyan)</span>
+                <span style={{ color: '#06b6d4', fontWeight: '600' }}>Past Measured Baseline (Blue)</span>
                 <span style={{ color: '#6b7280' }}>→</span>
                 <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#10b981' }}></span>
                 <span style={{ color: '#10b981', fontWeight: '600' }}>AI Forecast (Green)</span>
               </div>
               <span style={{ color: '#9ca3af' }}>
-                Anchor Point: <strong style={{ color: '#34d399' }}>Zero Prediction Gap</strong> at current clock hour
+                Timeline: <strong style={{ color: '#34d399' }}>Zero Prediction Gap</strong> connecting real history seamlessly into predictions.
               </span>
             </div>
 
