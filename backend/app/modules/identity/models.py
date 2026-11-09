@@ -12,6 +12,7 @@ class UserProfile(BaseModel):
     email: str = "consumer@example.com"
     city: str = "Hyderabad"
     state: str = "Telangana"
+    location_type: str = "urban"  # "urban" | "rural"
     provider: str = "TGSPDCL (Telangana Southern Power)"
     tariff_category: str = "LT-I(B)(i) Domestic (up to 200 units)"
     household_size: int = 4

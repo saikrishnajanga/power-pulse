@@ -152,9 +152,11 @@ export default function App() {
 
   // User Profile & Consent State (Epic E-02)
   const [userProfile, setUserProfile] = useState({
-    name: "Telangana Resident",
+    name: "Domestic Resident",
     email: "consumer@example.com",
     city: "Hyderabad",
+    state: "Telangana",
+    location_type: "urban",
     provider: "TGSPDCL (Telangana Southern Power)",
     tariff_category: "LT-I(B)(i) Domestic (up to 200 units)",
     household_size: 4,
@@ -477,6 +479,17 @@ export default function App() {
 
   const handleSaveProfile = async () => {
     try {
+      // Sync global application state with profile choices
+      if (userProfile.state) {
+        setSelectedState(userProfile.state);
+      }
+      if (userProfile.location_type) {
+        setLocationType(userProfile.location_type);
+        if (userProfile.state === 'Andhra Pradesh' && userProfile.location_type === 'rural') {
+          setIsRuralSubsidy(true);
+        }
+      }
+
       const res = await fetch(`${API_BASE}/me/profile`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -485,7 +498,7 @@ export default function App() {
       if (res.ok) {
         const updated = await res.json();
         setUserProfile(updated);
-        setProfileMessage({ type: 'success', text: 'Household profile saved successfully!' });
+        setProfileMessage({ type: 'success', text: `✓ Profile saved! Location set to ${updated.state} (${updated.location_type.toUpperCase()}).` });
         setTimeout(() => setProfileMessage(null), 3000);
       }
     } catch (err) {
@@ -2545,6 +2558,46 @@ export default function App() {
                   style={{ width: '100%', padding: '8px 10px', background: '#0b0f19', border: '1px solid #1f293d', borderRadius: '6px', color: '#9ca3af', fontSize: '13px' }}
                 />
               </div>
+
+              {/* State & Location Type Selection (Urban / Rural) */}
+              <div>
+                <label style={{ fontSize: '12px', color: '#10b981', display: 'block', marginBottom: '4px', fontWeight: '600' }}>State / Jurisdiction</label>
+                <select
+                  value={userProfile.state || 'Telangana'}
+                  onChange={(e) => {
+                    const st = e.target.value;
+                    const prov = st === 'Andhra Pradesh'
+                      ? (userProfile.location_type === 'rural' ? 'APERC LT-I Domestic (Rural Panchayat)' : 'APERC LT-I Domestic (Urban Corporation)')
+                      : 'TGSPDCL (Telangana Southern Power)';
+                    setUserProfile({ ...userProfile, state: st, provider: prov });
+                    setSelectedState(st);
+                  }}
+                  style={{ width: '100%', padding: '8px 10px', background: '#0b0f19', border: '1px solid #10b981', borderRadius: '6px', color: '#fff', fontSize: '13px', fontWeight: '600' }}
+                >
+                  <option value="Telangana">Telangana (TGSPDCL / TGNPDCL)</option>
+                  <option value="Andhra Pradesh">Andhra Pradesh (APERC / APSPDCL)</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '12px', color: '#06b6d4', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Location Classification</label>
+                <select
+                  value={userProfile.location_type || 'urban'}
+                  onChange={(e) => {
+                    const loc = e.target.value;
+                    const prov = userProfile.state === 'Andhra Pradesh'
+                      ? (loc === 'rural' ? 'APERC LT-I Domestic (Rural Panchayat)' : 'APERC LT-I Domestic (Urban Corporation)')
+                      : userProfile.provider;
+                    setUserProfile({ ...userProfile, location_type: loc, provider: prov });
+                    setLocationType(loc);
+                  }}
+                  style={{ width: '100%', padding: '8px 10px', background: '#0b0f19', border: '1px solid #06b6d4', borderRadius: '6px', color: '#fff', fontSize: '13px', fontWeight: '600' }}
+                >
+                  <option value="urban">🏙️ Urban (Corporation / Municipality)</option>
+                  <option value="rural">🌾 Rural (Gram Panchayat / Village)</option>
+                </select>
+              </div>
+
               <div>
                 <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Household Size (Persons)</label>
                 <input
