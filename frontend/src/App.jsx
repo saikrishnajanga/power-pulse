@@ -141,9 +141,6 @@ export default function App() {
     fetchForecast(forecastPeriod, inputUnits);
   }, [forecastPeriod, inputUnits]);
 
-  // PRISM-M Maintenance & Monitoring State (PDFs 1 & 2)
-  const [monitoringData, setMonitoringData] = useState(null);
-
   // Household Benchmark State (Charter Weeks 3-4, Task B2)
   const [benchmarkData, setBenchmarkData] = useState(null);
 
@@ -228,13 +225,6 @@ export default function App() {
         if (sRes.ok) {
           const sJson = await sRes.json();
           setSolarData(sJson);
-        }
-
-        // Fetch PRISM-M monitoring & telemetry (PDFs 1 & 2)
-        const mRes = await fetch(`${API_BASE}/monitoring/prism-m`);
-        if (mRes.ok) {
-          const mJson = await mRes.json();
-          setMonitoringData(mJson);
         }
 
         // Fetch Household Benchmark comparison (Charter Weeks 3-4, Task B2)
@@ -564,11 +554,10 @@ export default function App() {
           { id: 'overview', label: 'Overview', icon: Layers },
           { id: 'forecast', label: 'AI Demand Forecast', icon: TrendingUp },
           { id: 'anomalies', label: 'Anomaly & Spikes', icon: AlertTriangle },
-          { id: 'tariffs', label: 'TGSPDCL Bill & Gruha Jyothi', icon: IndianRupee },
+          { id: 'tariffs', label: 'Tariff & Subsidies (TS & AP)', icon: IndianRupee },
           { id: 'bills', label: 'Upload & Scan Bills', icon: FileUp },
           { id: 'recommendations', label: 'Solar & Eco-Alternatives', icon: Sun },
-          { id: 'appliances', label: 'Appliance Breakdown', icon: PieChart },
-          { id: 'monitoring', label: 'PRISM-M Telemetry & Risks', icon: ShieldCheck }
+          { id: 'appliances', label: 'Appliance Breakdown', icon: PieChart }
         ].map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -2126,174 +2115,6 @@ export default function App() {
                   <div style={{ marginTop: '4px', fontSize: '11px', color: '#06b6d4' }}>Rating: {app.star}</div>
                 </div>
               ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* -------------------- TAB 8: PRISM-M TELEMETRY & RISKS (PDF 1 & 2) -------------------- */}
-      {activeTab === 'monitoring' && (
-        <section>
-          {/* Header Banner */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <h2 style={{ fontSize: '20px', fontWeight: '800' }}>PRISM-M Maintenance, Monitoring & Risk Register</h2>
-                <span className="badge badge-emerald">M-Document Verified</span>
-              </div>
-              <p style={{ fontSize: '13px', color: '#9ca3af', marginTop: '4px' }}>
-                Operational model health, telemetry drift alerts, risk mitigations (A1–A7, B1–B8) and audit checklist from PRISM: M Document.
-              </p>
-            </div>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <span className="badge badge-cyan">System Status: {monitoringData?.system_status || 'All Models Operational'}</span>
-            </div>
-          </div>
-
-          {/* Active Model Performance Matrix Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '18px', marginBottom: '28px' }}>
-            {(monitoringData?.active_models || []).map((m, i) => (
-              <div key={i} className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                    <span className="badge badge-cyan">{m.code}</span>
-                    <span className="badge badge-emerald">{m.status}</span>
-                  </div>
-                  <h4 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '6px' }}>{m.name}</h4>
-                  <p style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '14px' }}>{m.purpose}</p>
-
-                  <div style={{ background: '#0b0f19', padding: '12px', borderRadius: '8px', marginBottom: '14px', fontSize: '12px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                    <div>
-                      <span style={{ color: '#9ca3af' }}>Test MAE:</span>
-                      <div style={{ fontSize: '16px', fontWeight: '700', color: '#10b981' }}>{m.test_mae} kWh</div>
-                    </div>
-                    <div>
-                      <span style={{ color: '#9ca3af' }}>Accuracy (R²):</span>
-                      <div style={{ fontSize: '16px', fontWeight: '700', color: '#06b6d4' }}>{m.test_r2}</div>
-                    </div>
-                    <div>
-                      <span style={{ color: '#9ca3af' }}>Test RMSE:</span>
-                      <div style={{ fontSize: '14px', fontWeight: '600', color: '#f9fafb' }}>{m.test_rmse} kWh</div>
-                    </div>
-                    <div>
-                      <span style={{ color: '#9ca3af' }}>Granularity:</span>
-                      <div style={{ fontSize: '12px', fontWeight: '600', color: '#fbbf24' }}>{m.granularity.split(' ')[0]}</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ borderTop: '1px solid #1f293d', paddingTop: '10px', fontSize: '11px', color: '#9ca3af' }}>
-                  <div><strong>Dataset:</strong> {m.dataset_coverage}</div>
-                  <div style={{ marginTop: '4px', color: '#6b7280' }}><strong>Retraining:</strong> {m.retraining_cadence}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Monitoring Signals & Drift Alerts (Section 4) */}
-          <div className="glass-card" style={{ marginBottom: '28px' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Activity size={18} color="#06b6d4" /> Live Operational Monitoring Signals (§4 Monitoring Plan)
-            </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
-              {(monitoringData?.monitoring_signals || []).map((s, idx) => (
-                <div key={idx} style={{ padding: '12px 16px', background: '#0b0f19', borderRadius: '10px', border: '1px solid #1f293d' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                    <span style={{ fontSize: '11px', color: '#06b6d4', fontWeight: '600' }}>{s.model_code}</span>
-                    <span className={`badge ${s.status === 'Optimal' ? 'badge-emerald' : 'badge-amber'}`}>{s.status}</span>
-                  </div>
-                  <strong style={{ fontSize: '13px', display: 'block', marginBottom: '4px' }}>{s.signal_name}</strong>
-                  <div style={{ fontSize: '15px', fontWeight: '700', color: '#f9fafb', marginBottom: '6px' }}>{s.metric_value}</div>
-                  <div style={{ fontSize: '11px', color: '#9ca3af' }}>{s.threshold_alert}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Risk Register Table (Section 5) */}
-          <div className="glass-card" style={{ marginBottom: '28px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <div>
-                <h3 style={{ fontSize: '16px', fontWeight: '700' }}>PRISM Risk Register & Verification (§5)</h3>
-                <p style={{ fontSize: '12px', color: '#9ca3af' }}>Audit of potential risks identified in Colab source code and PowerPulse mitigations</p>
-              </div>
-              <span className="badge badge-emerald">100% Mitigated</span>
-            </div>
-
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid #1f293d', color: '#9ca3af', textAlign: 'left' }}>
-                    <th style={{ padding: '10px 8px' }}>ID</th>
-                    <th style={{ padding: '10px 8px' }}>Model & Concern</th>
-                    <th style={{ padding: '10px 8px' }}>Severity</th>
-                    <th style={{ padding: '10px 8px' }}>Evidence in Notebook</th>
-                    <th style={{ padding: '10px 8px' }}>PowerPulse Mitigation Action</th>
-                    <th style={{ padding: '10px 8px', textAlign: 'center' }}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(monitoringData?.risk_register || []).map((r, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid #161e2e' }}>
-                      <td style={{ padding: '10px 8px', fontWeight: '700', color: '#06b6d4' }}>{r.id}</td>
-                      <td style={{ padding: '10px 8px' }}>
-                        <strong style={{ color: '#f9fafb', display: 'block' }}>{r.title}</strong>
-                        <span style={{ fontSize: '11px', color: '#9ca3af' }}>{r.model}</span>
-                      </td>
-                      <td style={{ padding: '10px 8px' }}>
-                        <span className={`badge ${r.severity === 'High' ? 'badge-rose' : r.severity === 'Medium' ? 'badge-amber' : 'badge-cyan'}`}>
-                          {r.severity}
-                        </span>
-                      </td>
-                      <td style={{ padding: '10px 8px', color: '#9ca3af', maxWidth: '240px' }}>{r.evidence_in_code}</td>
-                      <td style={{ padding: '10px 8px', color: '#34d399', maxWidth: '280px' }}>{r.mitigation_action}</td>
-                      <td style={{ padding: '10px 8px', textAlign: 'center' }}>
-                        <span className="badge badge-emerald">{r.powerpulse_status}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Retraining Triggers & Pre-Run Audit Checklist Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-            {/* Retraining Triggers (§3.2) */}
-            <div className="glass-card">
-              <h3 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <RefreshCw size={16} color="#fbbf24" /> Retraining Triggers (§3.2)
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {(monitoringData?.retraining_triggers || []).map((t, idx) => (
-                  <div key={idx} style={{ padding: '12px', background: '#0b0f19', borderRadius: '8px', border: '1px solid #1f293d', fontSize: '12px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                      <strong style={{ color: '#f9fafb' }}>{t.trigger_id}: {t.condition}</strong>
-                      <span className="badge badge-amber">{t.urgency}</span>
-                    </div>
-                    <div style={{ color: '#9ca3af', marginBottom: '4px' }}>Action: {t.action_required}</div>
-                    <div style={{ fontSize: '10px', color: '#6b7280' }}>Last Checked: {t.last_checked}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Audit Checklist (§7.1) */}
-            <div className="glass-card">
-              <h3 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <CheckSquare size={16} color="#10b981" /> Pre-Run Verification Checklist (§7.1)
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {(monitoringData?.audit_checklist || []).map((c, idx) => (
-                  <div key={idx} style={{ padding: '12px', background: '#0b0f19', borderRadius: '8px', border: '1px solid #1f293d', fontSize: '12px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                    <CheckCircle2 size={18} color="#10b981" style={{ flexShrink: 0, marginTop: '2px' }} />
-                    <div>
-                      <strong style={{ color: '#f9fafb', display: 'block' }}>{c.item_id}: {c.description}</strong>
-                      <span style={{ color: '#9ca3af', fontSize: '11px' }}>{c.notes}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
         </section>
