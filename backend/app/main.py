@@ -82,8 +82,41 @@ def api_health():
 # 1. Tariff & Gruha Jyothi Cost Engine Endpoints
 # -------------------------------------------------------------
 @app.get(f"{settings.API_V1_STR}/tariffs/categories")
-def get_tariff_categories():
-    """Returns TGSPDCL domestic tariff structures and slab limits."""
+def get_tariff_categories(state: str = Query("Telangana")):
+    """
+    Returns domestic tariff structures and slab limits for Telangana (TGSPDCL)
+    and Andhra Pradesh (APERC Approved Urban & Rural Telescopic Slabs).
+    """
+    if "andhra" in state.lower() or "ap" in state.lower():
+        from .modules.tariffs.engine import APERC_DOMESTIC_SLABS
+        return {
+            "provider": "APERC (APSPDCL / APEPDCL / APCPDCL)",
+            "state": "Andhra Pradesh",
+            "rural_subsidy_scheme": "YSR Jagjeevan Jyothi Scheme (200 units/mo free electricity for rural/BPL)",
+            "categories": [
+                {
+                    "category_name": "APERC LT-I Domestic (Urban Corporation)",
+                    "location_type": "urban",
+                    "fixed_charge_per_kw": 10.0,
+                    "customer_charge_inr": 50.0,
+                    "slabs": [
+                        {"slab_range": f"{int(s[0] - (30 if i==0 else [30,45,50,100,175][i-1]))}-{int(s[0]) if s[0] != float('inf') else 'Above'}", "upper_limit": u if u != float("inf") else "Above", "rate_inr_per_kwh": r}
+                        for i, (u, r) in enumerate(APERC_DOMESTIC_SLABS)
+                    ],
+                },
+                {
+                    "category_name": "APERC LT-I Domestic (Rural Panchayat)",
+                    "location_type": "rural",
+                    "fixed_charge_per_kw": 10.0,
+                    "customer_charge_inr": 25.0,
+                    "slabs": [
+                        {"slab_range": f"{int(s[0] - (30 if i==0 else [30,45,50,100,175][i-1]))}-{int(s[0]) if s[0] != float('inf') else 'Above'}", "upper_limit": u if u != float("inf") else "Above", "rate_inr_per_kwh": r}
+                        for i, (u, r) in enumerate(APERC_DOMESTIC_SLABS)
+                    ],
+                },
+            ],
+        }
+
     return {
         "provider": "TGSPDCL (Telangana Southern Power Distribution Company Ltd)",
         "state": "Telangana",
@@ -91,6 +124,7 @@ def get_tariff_categories():
         "categories": [
             {
                 "category_name": name,
+                "location_type": "all",
                 "monthly_units_limit": None if limit == float("inf") else limit,
                 "slabs": [{"upper_limit": u if u != float("inf") else "Above", "rate_inr_per_kwh": r} for u, r in slabs],
             }
@@ -140,19 +174,36 @@ def generate_forecast_endpoint(request: ForecastRequest):
 
 
 @app.get(f"{settings.API_V1_STR}/forecast/demo", response_model=ForecastResponse)
-def get_demo_forecast(period: str = Query("weekly", pattern="^(weekly|monthly)$")):
-    """Returns instant demo forecast generated from calibrated Indian household profiles."""
+def get_demo_forecast(
+    period: str = Query("weekly", pattern="^(weekly|monthly)$"),
+    monthly_kwh: Optional[float] = Query(None, ge=10, le=10000),
+):
+    """
+    Returns instant demo forecast generated from calibrated Indian household profiles.
+    Dynamically scales with user monthly consumption so updates are never static.
+    """
     horizon = 168 if period == "weekly" else 720
     name = "Weekly Forecast (Next 7 Days)" if period == "weekly" else "Monthly Forecast (Next 30 Days)"
 
-    # Generate 200 hours of realistic historical baseline (0.3 to 1.2 kWh/hr with daily diurnal cycle)
-    np.random.seed(42)
-    start_dt = datetime.now() - timedelta(hours=200)
+    user_units = float(monthly_kwh) if monthly_kwh is not None else 185.0
+    daily_target_kwh = user_units / 30.0
+    hourly_mean = max(0.05, daily_target_kwh / 24.0)
+
+    # Generate 200 hours of realistic historical baseline up to current clock hour
+    now = datetime.now().replace(minute=0, second=0, microsecond=0)
+    start_dt = now - timedelta(hours=200)
     times = pd.date_range(start=start_dt, periods=200, freq="h")
     hours = times.hour.to_numpy()
-    hour_factors = np.clip(np.sin((hours - 6) * np.pi / 12), a_min=-0.5, a_max=1.0) * 0.4
-    base_values = 0.4 + hour_factors + np.random.normal(0, 0.08, len(times))
-    base_values = np.clip(base_values, 0.1, 2.5)
+
+    # Calibrated Indian domestic diurnal shape: morning wake peak (7-9 AM) and evening cooling peak (7-10 PM)
+    diurnal_curve = (
+        0.35 * np.sin((hours - 6) * np.pi / 12)
+        + 0.25 * np.exp(-((hours - 20) ** 2) / 8)
+        + 0.15 * np.exp(-((hours - 8) ** 2) / 6)
+    )
+    # Scale to match user's actual consumption level dynamically
+    base_values = hourly_mean * (1.0 + diurnal_curve) + np.random.normal(0, max(0.01, hourly_mean * 0.08), len(times))
+    base_values = np.clip(base_values, max(0.02, hourly_mean * 0.2), hourly_mean * 3.5)
 
     series = pd.Series(base_values, index=times)
     return forecasting_engine.generate_forecast(series, horizon_hours=horizon, horizon_name=name)
@@ -273,6 +324,8 @@ class SolarPredictRequest(BaseModel):
 
 class SolarDailyRequest(BaseModel):
     panel_capacity_kw: float = 5.0
+    irradiance_wm2: Optional[float] = 600.0
+    temperature_c: Optional[float] = 30.0
     cloud_cover_pct: float = 25.0
     battery_installed: bool = False
     occupants: int = 3
@@ -282,6 +335,8 @@ class SolarDailyRequest(BaseModel):
 
 class SolarSavingsRequest(BaseModel):
     panel_capacity_kw: float = 5.0
+    irradiance_wm2: Optional[float] = 600.0
+    temperature_c: Optional[float] = 30.0
     cloud_cover_pct: float = 25.0
     battery_installed: bool = False
     monthly_consumption_kwh: float = 185.0
@@ -324,7 +379,7 @@ def solar_predict_hour(request: SolarPredictRequest):
 def solar_predict_daily(request: SolarDailyRequest):
     """
     Generates 24-hour diurnal solar generation profile.
-    Returns hourly predictions with irradiance and temperature curves.
+    Returns hourly predictions with irradiance and temperature curves scaled to input irradiance.
     """
     td = None
     if request.target_date:
@@ -334,6 +389,8 @@ def solar_predict_daily(request: SolarDailyRequest):
             pass
     return predict_daily_profile(
         panel_capacity_kw=request.panel_capacity_kw,
+        irradiance_wm2=request.irradiance_wm2,
+        temperature_c=request.temperature_c,
         cloud_cover_pct=request.cloud_cover_pct,
         battery_installed=request.battery_installed,
         occupants=request.occupants,
@@ -346,10 +403,12 @@ def solar_predict_daily(request: SolarDailyRequest):
 def solar_predict_savings(request: SolarSavingsRequest):
     """
     Full solar ROI analysis: ML generation + financial savings + CO₂ offset.
-    Integrates PM Surya Ghar subsidies and TGSPDCL tariff math.
+    Recalculates based on solar irradiance, panel size, and local tariffs.
     """
     return predict_with_savings(
         panel_capacity_kw=request.panel_capacity_kw,
+        irradiance_wm2=request.irradiance_wm2,
+        temperature_c=request.temperature_c,
         cloud_cover_pct=request.cloud_cover_pct,
         battery_installed=request.battery_installed,
         monthly_consumption_kwh=request.monthly_consumption_kwh,
@@ -374,13 +433,18 @@ def solar_today_live(
 
 
 @app.get(f"{settings.API_V1_STR}/solar/demo")
-def solar_demo():
+def solar_demo(
+    irradiance_wm2: float = Query(600.0),
+    panel_capacity_kw: float = Query(3.0),
+    temperature_c: float = Query(30.0),
+):
     """
-    Returns a pre-computed demo solar analysis for a 3 kW system
-    with default Hyderabad conditions (for instant frontend loading).
+    Returns solar analysis with default conditions or query overrides.
     """
     return predict_with_savings(
-        panel_capacity_kw=3.0,
+        panel_capacity_kw=panel_capacity_kw,
+        irradiance_wm2=irradiance_wm2,
+        temperature_c=temperature_c,
         cloud_cover_pct=25.0,
         battery_installed=False,
         monthly_consumption_kwh=185.0,

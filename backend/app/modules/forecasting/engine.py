@@ -143,15 +143,61 @@ class ForecastingEngine:
             history.loc[next_time] = prediction
             last_time = next_time
 
+        # Build seamless continuous timeline:
+        # 1. Historical actual points (past 24 hours of baseline)
+        # 2. Transition anchor point at T_0 (Now) with identical actual & predicted values (Zero Prediction Gap)
+        # 3. Future forecasted points (T_1 to T_horizon)
         points: List[HourlyForecastPoint] = []
+        hist_slice = history_series.iloc[-24:]
+
+        for dt, actual_val in hist_slice.items():
+            dt_py = dt.to_pydatetime() if hasattr(dt, "to_pydatetime") else dt
+            h_hr = dt_py.hour
+            med = float(hour_stats.loc[h_hr, "median"])
+            mad = float(hour_stats.loc[h_hr, "mad"])
+            th = round(med + 3.0 * 1.4826 * mad, 3)
+            is_spk = actual_val > th
+            points.append(
+                HourlyForecastPoint(
+                    timestamp=dt_py,
+                    actual_kwh=round(float(actual_val), 3),
+                    predicted_kwh=None,
+                    potential_spike=bool(is_spk),
+                    status="Historical Spike" if is_spk else "Normal",
+                    spike_threshold_kwh=th,
+                    point_type="actual",
+                )
+            )
+
+        # Transition anchor point at T_0 (Current time / Now)
+        transition_dt = history_series.index[-1].to_pydatetime() if hasattr(history_series.index[-1], "to_pydatetime") else history_series.index[-1]
+        t0_val = round(float(history_series.iloc[-1]), 3)
+        t0_med = float(hour_stats.loc[transition_dt.hour, "median"])
+        t0_mad = float(hour_stats.loc[transition_dt.hour, "mad"])
+        t0_th = round(t0_med + 3.0 * 1.4826 * t0_mad, 3)
+
+        if points:
+            points[-1] = HourlyForecastPoint(
+                timestamp=transition_dt,
+                actual_kwh=t0_val,
+                predicted_kwh=t0_val,  # Anchor coordinate eliminates the visual prediction gap
+                potential_spike=bool(t0_val > t0_th),
+                status="Now (Transition)",
+                spike_threshold_kwh=t0_th,
+                point_type="transition",
+            )
+
+        # Future forecast points
         for dt, p, s, th in zip(future_times, predictions, spike_flags, thresholds):
             points.append(
                 HourlyForecastPoint(
                     timestamp=dt,
+                    actual_kwh=None,
                     predicted_kwh=p,
                     potential_spike=s,
                     status="Potential Spike" if s else "Normal",
                     spike_threshold_kwh=th,
+                    point_type="predicted",
                 )
             )
 
@@ -168,8 +214,9 @@ class ForecastingEngine:
         return ForecastResponse(
             horizon_name=horizon_name,
             horizon_hours=horizon_hours,
-            start_time=future_times[0],
+            start_time=points[0].timestamp,
             end_time=future_times[-1],
+            transition_time=transition_dt,
             total_predicted_kwh=total_kwh,
             estimated_cost_inr=cost_est,
             potential_spike_count=spike_count,

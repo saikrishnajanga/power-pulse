@@ -89,7 +89,11 @@ export default function App() {
   const [forecastPeriod, setForecastPeriod] = useState('weekly');
   const [forecastData, setForecastData] = useState(null);
 
-  // Tariff calculator state
+  // Tariff calculator state - Regional & Location-Based (Telangana & Andhra Pradesh)
+  const [selectedState, setSelectedState] = useState('Telangana'); // 'Telangana' | 'Andhra Pradesh'
+  const [locationType, setLocationType] = useState('urban'); // 'urban' | 'rural'
+  const [sanctionedLoad, setSanctionedLoad] = useState(2.0); // in kW
+  const [isRuralSubsidy, setIsRuralSubsidy] = useState(false); // YSR Jagjeevan Jyothi Scheme
   const [inputUnits, setInputUnits] = useState(185);
   const [inputDays, setInputDays] = useState(30);
   const [isGruhaJyothi, setIsGruhaJyothi] = useState(true);
@@ -118,6 +122,24 @@ export default function App() {
   const [solarData, setSolarData] = useState(null);
   const [solarLoading, setSolarLoading] = useState(false);
   const [solarHourPrediction, setSolarHourPrediction] = useState(null);
+
+  // Dedicated fast forecast fetcher - eliminates delayed/static updates
+  const fetchForecast = async (period = forecastPeriod, units = inputUnits) => {
+    try {
+      const res = await fetch(`${API_BASE}/forecast/demo?period=${period}&monthly_kwh=${Number(units)}`);
+      if (res.ok) {
+        const json = await res.json();
+        setForecastData(json);
+      }
+    } catch (err) {
+      console.warn("Forecast fetch failed:", err);
+    }
+  };
+
+  // Immediate forecast update when period or units change
+  useEffect(() => {
+    fetchForecast(forecastPeriod, inputUnits);
+  }, [forecastPeriod, inputUnits]);
 
   // PRISM-M Maintenance & Monitoring State (PDFs 1 & 2)
   const [monitoringData, setMonitoringData] = useState(null);
@@ -321,19 +343,35 @@ export default function App() {
   };
 
   // Solar Simulator: fetch full savings analysis with daily profile
-  const fetchSolarAnalysis = async () => {
+  const fetchSolarAnalysis = async (
+    customIrr = null,
+    customPanel = null,
+    customTemp = null,
+    customCloud = null,
+    customBat = null,
+    customCity = null
+  ) => {
     setSolarLoading(true);
+    const irr = customIrr !== null ? customIrr : solarIrradiance;
+    const panel = customPanel !== null ? customPanel : solarPanel;
+    const temp = customTemp !== null ? customTemp : solarTemp;
+    const cloud = customCloud !== null ? customCloud : solarCloud;
+    const bat = customBat !== null ? customBat : solarBattery;
+    const city = customCity !== null ? customCity : solarCity;
+
     try {
       const res = await fetch(`${API_BASE}/solar/predict-savings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          panel_capacity_kw: solarPanel,
-          cloud_cover_pct: solarCloud,
-          battery_installed: solarBattery,
+          panel_capacity_kw: panel,
+          irradiance_wm2: irr,
+          temperature_c: temp,
+          cloud_cover_pct: cloud,
+          battery_installed: bat,
           monthly_consumption_kwh: Number(inputUnits),
-          effective_tariff_inr: 4.8,
-          city: solarCity,
+          effective_tariff_inr: tariffResult?.effective_rate_per_kwh || 4.8,
+          city: city,
         })
       });
       if (res.ok) {
@@ -346,6 +384,15 @@ export default function App() {
       setSolarLoading(false);
     }
   };
+
+  // Recalculate solar generation graph & single hour prediction dynamically on input changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchSolarAnalysis();
+      fetchSolarHourPrediction();
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [solarIrradiance, solarPanel, solarTemp, solarCloud, solarBattery, solarCity, inputUnits]);
 
   // Solar Simulator: predict single hour
   const fetchSolarHourPrediction = async () => {
@@ -372,15 +419,31 @@ export default function App() {
     }
   };
 
-  const handleCalculateTariff = async () => {
+  // Regional & Location-Based Tariff Calculator (Telangana & Andhra Pradesh)
+  const handleCalculateTariff = async (
+    overrideState = null,
+    overrideLocation = null,
+    overrideUnits = null,
+    overrideLoad = null,
+    overrideSubsidy = null
+  ) => {
+    const st = overrideState || selectedState;
+    const loc = overrideLocation || locationType;
+    const units = overrideUnits !== null ? overrideUnits : Number(inputUnits);
+    const load = overrideLoad !== null ? overrideLoad : Number(sanctionedLoad);
+    const sub = overrideSubsidy !== null ? overrideSubsidy : (st === 'Telangana' ? isGruhaJyothi : isRuralSubsidy);
+
     try {
       const res = await fetch(`${API_BASE}/tariffs/calculate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          units_consumed_kwh: Number(inputUnits),
+          units_consumed_kwh: units,
           billing_days: Number(inputDays),
-          is_gruha_jyothi_eligible: isGruhaJyothi
+          state: st,
+          location_type: loc,
+          sanctioned_load_kw: load,
+          is_gruha_jyothi_eligible: sub,
         })
       });
       if (res.ok) {
@@ -391,6 +454,11 @@ export default function App() {
       console.warn("Using offline calculator fallback", err);
     }
   };
+
+  // Re-calculate bill whenever state, location, units, load, or subsidy status changes
+  useEffect(() => {
+    handleCalculateTariff();
+  }, [selectedState, locationType, sanctionedLoad, inputUnits, inputDays, isGruhaJyothi, isRuralSubsidy]);
 
   const handleSaveProfile = async () => {
     try {
@@ -604,6 +672,10 @@ export default function App() {
                   ]}>
                     <defs>
                       <linearGradient id="colorKwh" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
+                      </linearGradient>
+                      <linearGradient id="colorActual" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4} />
                         <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.0} />
                       </linearGradient>
@@ -611,9 +683,11 @@ export default function App() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#1f293d" />
                     <XAxis dataKey="timestamp" stroke="#6b7280" tickFormatter={(t) => typeof t === 'string' && t.includes('T') ? t.split('T')[1].substring(0, 5) : t} />
                     <YAxis stroke="#6b7280" unit=" kWh" />
-                    <Tooltip contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', borderRadius: '8px' }} />
-                    <Area type="monotone" dataKey="predicted_kwh" stroke="#06b6d4" strokeWidth={2} fillOpacity={1} fill="url(#colorKwh)" name="Predicted kWh" />
+                    <Tooltip contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', borderRadius: '8px', fontSize: '12px' }} />
+                    <Area type="monotone" dataKey="actual_kwh" stroke="#06b6d4" strokeWidth={2} fillOpacity={1} fill="url(#colorActual)" name="Actual Baseline" connectNulls={false} />
+                    <Area type="monotone" dataKey="predicted_kwh" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorKwh)" name="Forecasted Demand" connectNulls={false} />
                     <Line type="monotone" dataKey="spike_threshold_kwh" stroke="#f43f5e" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="Dynamic Spike Threshold" />
+                    <Legend />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -787,18 +861,107 @@ export default function App() {
                 <AreaChart data={forecastData?.points || []}>
                   <defs>
                     <linearGradient id="forecastFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.45} />
                       <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
+                    </linearGradient>
+                    <linearGradient id="actualFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1f293d" />
-                  <XAxis dataKey="timestamp" stroke="#6b7280" tickFormatter={(t) => typeof t === 'string' && t.includes('T') ? t.split('T')[1].substring(0, 5) : t} />
+                  <XAxis
+                    dataKey="timestamp"
+                    stroke="#6b7280"
+                    tickFormatter={(t) => {
+                      if (typeof t === 'string' && t.includes('T')) {
+                        const [d, time] = t.split('T');
+                        return `${d.slice(5)} ${time.substring(0, 5)}`;
+                      }
+                      return t;
+                    }}
+                  />
                   <YAxis stroke="#6b7280" unit=" kWh" />
-                  <Tooltip contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', borderRadius: '8px' }} />
-                  <Area type="monotone" dataKey="predicted_kwh" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#forecastFill)" name="Forecasted Demand" />
-                  <Line type="monotone" dataKey="spike_threshold_kwh" stroke="#f43f5e" strokeWidth={1.5} strokeDasharray="3 3" dot={false} name="MAD Threshold" />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', borderRadius: '8px', fontSize: '12px' }}
+                    formatter={(val, name, item) => {
+                      if (val === null || val === undefined) return null;
+                      const isSpk = item?.payload?.potential_spike;
+                      if (name === "Dynamic MAD Anomaly Ceiling") {
+                        return [`${Number(val).toFixed(3)} kWh (3σ Threshold)`, name];
+                      }
+                      return [
+                        <span>
+                          {Number(val).toFixed(3)} kWh {isSpk && <strong style={{ color: '#f43f5e' }}> ⚠️ Spike</strong>}
+                        </span>,
+                        name
+                      ];
+                    }}
+                    labelFormatter={(label, items) => {
+                      const payload = items?.[0]?.payload;
+                      const typeLabel = payload?.point_type === 'actual' ? '🔵 Historical Baseline' : (payload?.point_type === 'transition' ? '🟢 Current Hour (Anchor - No Gap)' : '⚡ AI Forecast');
+                      return `${label} · ${typeLabel}`;
+                    }}
+                  />
+                  <Area type="monotone" dataKey="actual_kwh" stroke="#06b6d4" strokeWidth={2} fillOpacity={1} fill="url(#actualFill)" name="Past Actual Baseline" connectNulls={false} />
+                  <Area type="monotone" dataKey="predicted_kwh" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#forecastFill)" name="AI Forecasted Demand" connectNulls={false} />
+                  <Line type="monotone" dataKey="spike_threshold_kwh" stroke="#f43f5e" strokeWidth={1.8} strokeDasharray="4 4" dot={false} name="Dynamic MAD Anomaly Ceiling" />
+                  <Legend />
                 </AreaChart>
               </ResponsiveContainer>
+            </div>
+
+            {/* Visual Continuity & Anchor Marker */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(6, 182, 212, 0.08)', borderRadius: '8px', border: '1px solid rgba(6, 182, 212, 0.25)', marginTop: '14px', fontSize: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#06b6d4' }}></span>
+                <span style={{ color: '#06b6d4', fontWeight: '600' }}>Past 24h Baseline (Cyan)</span>
+                <span style={{ color: '#6b7280' }}>→</span>
+                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#10b981' }}></span>
+                <span style={{ color: '#10b981', fontWeight: '600' }}>AI Forecast (Green)</span>
+              </div>
+              <span style={{ color: '#9ca3af' }}>
+                Anchor Point: <strong style={{ color: '#34d399' }}>Zero Prediction Gap</strong> at current clock hour
+              </span>
+            </div>
+
+            {/* Threshold Behavior & Explanation Guide Card */}
+            <div style={{ marginTop: '20px', padding: '18px', background: '#0b0f19', borderRadius: '12px', border: '1px solid rgba(244, 63, 94, 0.3)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                <div style={{ width: '18px', height: '0px', borderTop: '2px dashed #f43f5e' }}></div>
+                <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#f43f5e' }}>
+                  What is the Red Dotted Threshold? (Dynamic Hourly MAD Anomaly Ceiling)
+                </h4>
+              </div>
+              <p style={{ fontSize: '12px', color: '#cbd5e1', lineHeight: '1.6', marginBottom: '12px' }}>
+                The <strong>red dotted line</strong> is not a static limit. It is an automated <strong>Dynamic Hourly Median Absolute Deviation (MAD) Anomaly Threshold</strong> derived from your historical consumption distribution for every hour of the day:
+              </p>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', fontSize: '12px', marginBottom: '12px' }}>
+                <div style={{ padding: '10px', background: '#111827', borderRadius: '8px', borderLeft: '3px solid #06b6d4' }}>
+                  <strong style={{ color: '#06b6d4', display: 'block', marginBottom: '4px' }}>1. Mathematical Formula</strong>
+                  <code style={{ color: '#f9fafb', fontSize: '11px', background: '#1f293d', padding: '2px 4px', borderRadius: '4px' }}>
+                    Threshold(h) = Median(h) + 3.0 × 1.4826 × MAD(h)
+                  </code>
+                  <p style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
+                    1.4826 × MAD is the robust estimator of standard deviation (σ), creating an adaptive 3-sigma ceiling resistant to outliers.
+                  </p>
+                </div>
+
+                <div style={{ padding: '10px', background: '#111827', borderRadius: '8px', borderLeft: '3px solid #fbbf24' }}>
+                  <strong style={{ color: '#fbbf24', display: 'block', marginBottom: '4px' }}>2. Why It Curves Dynamically</strong>
+                  <p style={{ fontSize: '11px', color: '#9ca3af' }}>
+                    Power demand naturally fluctuates: high at 8:00 AM (breakfast/cooking) and 8:00 PM (HVAC/TV), but low at 3:00 AM (sleep). The threshold curves to mirror healthy human routines instead of using a rigid flat line.
+                  </p>
+                </div>
+
+                <div style={{ padding: '10px', background: '#111827', borderRadius: '8px', borderLeft: '3px solid #f43f5e' }}>
+                  <strong style={{ color: '#f43f5e', display: 'block', marginBottom: '4px' }}>3. Spike Alerts & Cost Protection</strong>
+                  <p style={{ fontSize: '11px', color: '#9ca3af' }}>
+                    Whenever forecasted demand breaches this red ceiling, the engine flags a <strong>Potential Spike</strong>. This prevents expensive tariff slab jumps, equipment overload, and unexpected utility demand charges.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -839,14 +1002,139 @@ export default function App() {
         </section>
       )}
 
-      {/* -------------------- TAB 4: TARIFFS & GRUHA JYOTHI -------------------- */}
+      {/* -------------------- TAB 4: TARIFFS & REGIONAL SUBSIDIES -------------------- */}
       {activeTab === 'tariffs' && (
         <section>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px' }}>
             {/* Input Controls */}
             <div className="glass-card">
-              <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '18px' }}>TGSPDCL Tariff Simulator</h3>
-              
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '700' }}>Regional Electricity Tariff Simulator</h3>
+                <span className="badge badge-cyan">{selectedState}</span>
+              </div>
+
+              {/* State Selection */}
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '12px', color: '#9ca3af', marginBottom: '6px' }}>Select State / Regulatory Board</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedState('Telangana');
+                      handleCalculateTariff('Telangana', locationType);
+                    }}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      border: selectedState === 'Telangana' ? '1px solid #10b981' : '1px solid #374151',
+                      background: selectedState === 'Telangana' ? 'rgba(16, 185, 129, 0.15)' : '#0b0f19',
+                      color: selectedState === 'Telangana' ? '#34d399' : '#9ca3af',
+                    }}
+                  >
+                    Telangana (TGSPDCL)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedState('Andhra Pradesh');
+                      handleCalculateTariff('Andhra Pradesh', locationType);
+                    }}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      border: selectedState === 'Andhra Pradesh' ? '1px solid #06b6d4' : '1px solid #374151',
+                      background: selectedState === 'Andhra Pradesh' ? 'rgba(6, 182, 212, 0.15)' : '#0b0f19',
+                      color: selectedState === 'Andhra Pradesh' ? '#22d3ee' : '#9ca3af',
+                    }}
+                  >
+                    Andhra Pradesh (APERC)
+                  </button>
+                </div>
+              </div>
+
+              {/* Location Type (Urban vs Rural) - Specially required for Andhra Pradesh */}
+              {selectedState === 'Andhra Pradesh' && (
+                <div style={{ marginBottom: '16px', padding: '12px', background: '#0b0f19', borderRadius: '10px', border: '1px solid #1f293d' }}>
+                  <label style={{ display: 'block', fontSize: '12px', color: '#fbbf24', fontWeight: '700', marginBottom: '6px' }}>
+                    📍 Location Classification (Andhra Pradesh)
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLocationType('urban');
+                        handleCalculateTariff('Andhra Pradesh', 'urban');
+                      }}
+                      style={{
+                        padding: '8px 10px',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        border: locationType === 'urban' ? '1px solid #06b6d4' : '1px solid #374151',
+                        background: locationType === 'urban' ? 'rgba(6, 182, 212, 0.2)' : '#111827',
+                        color: locationType === 'urban' ? '#22d3ee' : '#9ca3af',
+                      }}
+                    >
+                      🏙️ Urban (Corporation)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLocationType('rural');
+                        handleCalculateTariff('Andhra Pradesh', 'rural');
+                      }}
+                      style={{
+                        padding: '8px 10px',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        border: locationType === 'rural' ? '1px solid #10b981' : '1px solid #374151',
+                        background: locationType === 'rural' ? 'rgba(16, 185, 129, 0.2)' : '#111827',
+                        color: locationType === 'rural' ? '#34d399' : '#9ca3af',
+                      }}
+                    >
+                      🌾 Rural (Panchayat)
+                    </button>
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '6px' }}>
+                    {locationType === 'urban'
+                      ? '• Urban: ₹50/mo customer service charge · Municipal Corporation grid standards.'
+                      : '• Rural: Concessional ₹25/mo customer service charge · Gram Panchayat lifeline schedule.'}
+                  </div>
+                </div>
+              )}
+
+              {/* Sanctioned Load (kW) */}
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>
+                  <span>Sanctioned Load (Connected Capacity)</span>
+                  <strong style={{ color: '#f9fafb' }}>{sanctionedLoad} kW</strong>
+                </div>
+                <input
+                  type="range"
+                  min="1"
+                  max="10"
+                  step="0.5"
+                  value={sanctionedLoad}
+                  onChange={(e) => setSanctionedLoad(Number(e.target.value))}
+                  style={{ width: '100%', accentColor: selectedState === 'Andhra Pradesh' ? '#06b6d4' : '#10b981' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#6b7280' }}>
+                  <span>1 kW (₹10/mo)</span>
+                  <span>3 kW (₹30/mo)</span>
+                  <span>10 kW (₹100/mo)</span>
+                </div>
+              </div>
+
+              {/* Units Consumed */}
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Units Consumed (kWh)</label>
                 <input
@@ -857,6 +1145,7 @@ export default function App() {
                 />
               </div>
 
+              {/* Billing Days */}
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>Billing Cycle (Days)</label>
                 <input
@@ -867,21 +1156,38 @@ export default function App() {
                 />
               </div>
 
-              <div style={{ marginBottom: '22px', display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', background: '#0b0f19', borderRadius: '8px', border: '1px solid #1f293d' }}>
-                <input
-                  type="checkbox"
-                  id="gj_check"
-                  checked={isGruhaJyothi}
-                  onChange={(e) => setIsGruhaJyothi(e.target.checked)}
-                  style={{ width: '18px', height: '18px', accentColor: '#10b981' }}
-                />
-                <label htmlFor="gj_check" style={{ fontSize: '13px', cursor: 'pointer' }}>
-                  <strong>Gruha Jyothi Scheme</strong>
-                  <div style={{ fontSize: '11px', color: '#9ca3af' }}>Free electricity up to 200 units/mo for eligible homes</div>
-                </label>
-              </div>
+              {/* Subsidy Scheme Checkboxes (State-Specific) */}
+              {selectedState === 'Telangana' ? (
+                <div style={{ marginBottom: '22px', display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', background: '#0b0f19', borderRadius: '8px', border: '1px solid #1f293d' }}>
+                  <input
+                    type="checkbox"
+                    id="gj_check"
+                    checked={isGruhaJyothi}
+                    onChange={(e) => setIsGruhaJyothi(e.target.checked)}
+                    style={{ width: '18px', height: '18px', accentColor: '#10b981' }}
+                  />
+                  <label htmlFor="gj_check" style={{ fontSize: '13px', cursor: 'pointer' }}>
+                    <strong>Gruha Jyothi Scheme (Telangana)</strong>
+                    <div style={{ fontSize: '11px', color: '#9ca3af' }}>100% free electricity up to 200 units/mo for eligible homes</div>
+                  </label>
+                </div>
+              ) : (
+                <div style={{ marginBottom: '22px', display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', background: '#0b0f19', borderRadius: '8px', border: '1px solid #1f293d' }}>
+                  <input
+                    type="checkbox"
+                    id="ap_sub_check"
+                    checked={isRuralSubsidy}
+                    onChange={(e) => setIsRuralSubsidy(e.target.checked)}
+                    style={{ width: '18px', height: '18px', accentColor: '#06b6d4' }}
+                  />
+                  <label htmlFor="ap_sub_check" style={{ fontSize: '13px', cursor: 'pointer' }}>
+                    <strong>YSR Jagjeevan Jyothi Scheme (AP)</strong>
+                    <div style={{ fontSize: '11px', color: '#9ca3af' }}>100% free power up to 200 units/mo for eligible {locationType} / BPL households</div>
+                  </label>
+                </div>
+              )}
 
-              <button className="btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={handleCalculateTariff}>
+              <button className="btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => handleCalculateTariff()}>
                 Recalculate Bill
               </button>
             </div>
@@ -890,21 +1196,49 @@ export default function App() {
             <div className="glass-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
                 <div>
-                  <span className="badge badge-cyan">{tariffResult?.category || 'LT-I(B)(i) Domestic'}</span>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <span className="badge badge-cyan">{tariffResult?.category || 'Domestic'}</span>
+                    <span className="badge badge-emerald">{tariffResult?.state || selectedState}</span>
+                    {selectedState === 'Andhra Pradesh' && (
+                      <span className="badge badge-amber">{locationType.toUpperCase()}</span>
+                    )}
+                  </div>
                   <h3 style={{ fontSize: '24px', fontWeight: '800', marginTop: '6px' }}>
                     Net Payable: <span style={{ color: tariffResult?.net_payable_inr === 0 ? '#34d399' : '#f9fafb' }}>₹{tariffResult?.net_payable_inr?.toFixed(2)}</span>
                   </h3>
-                  <p style={{ fontSize: '13px', color: '#9ca3af' }}>Gross Billed: ₹{tariffResult?.gross_total_inr?.toFixed(2)} (incl. Fixed charges ₹{tariffResult?.fixed_charges_inr} + Duty ₹{tariffResult?.electricity_duty_inr})</p>
+                  <p style={{ fontSize: '12px', color: '#9ca3af' }}>
+                    Provider: {tariffResult?.provider || (selectedState === 'Telangana' ? 'TGSPDCL' : 'APERC')}
+                  </p>
                 </div>
                 {tariffResult?.is_gruha_jyothi_applied && (
                   <span className="badge badge-emerald">100% Subsidized (₹0 Bill)</span>
                 )}
               </div>
 
-              {/* Gruha Jyothi Progress Bar */}
+              {/* Financial Component Breakdown Badges */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', fontSize: '12px', marginBottom: '20px' }}>
+                <div style={{ padding: '10px', background: '#0b0f19', borderRadius: '8px' }}>
+                  <span style={{ color: '#9ca3af', display: 'block', fontSize: '11px' }}>Energy Charges:</span>
+                  <strong style={{ fontSize: '14px', color: '#f9fafb' }}>₹{tariffResult?.energy_charges_inr?.toFixed(2)}</strong>
+                </div>
+                <div style={{ padding: '10px', background: '#0b0f19', borderRadius: '8px' }}>
+                  <span style={{ color: '#9ca3af', display: 'block', fontSize: '11px' }}>Fixed Charges ({sanctionedLoad} kW):</span>
+                  <strong style={{ fontSize: '14px', color: '#f9fafb' }}>₹{tariffResult?.fixed_charges_inr?.toFixed(2)}</strong>
+                </div>
+                <div style={{ padding: '10px', background: '#0b0f19', borderRadius: '8px' }}>
+                  <span style={{ color: '#9ca3af', display: 'block', fontSize: '11px' }}>Customer Service Charge:</span>
+                  <strong style={{ fontSize: '14px', color: '#f9fafb' }}>₹{tariffResult?.customer_charges_inr?.toFixed(2) || '50.00'}</strong>
+                </div>
+                <div style={{ padding: '10px', background: '#0b0f19', borderRadius: '8px' }}>
+                  <span style={{ color: '#9ca3af', display: 'block', fontSize: '11px' }}>Electricity Duty:</span>
+                  <strong style={{ fontSize: '14px', color: '#f9fafb' }}>₹{tariffResult?.electricity_duty_inr?.toFixed(2)}</strong>
+                </div>
+              </div>
+
+              {/* Subsidy Quota Progress Bar */}
               <div style={{ marginBottom: '24px', padding: '16px', background: '#0b0f19', borderRadius: '12px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
-                  <span>Gruha Jyothi 200-Unit Quota</span>
+                  <span>{selectedState === 'Telangana' ? 'Gruha Jyothi Quota (TS)' : 'YSR Jagjeevan Jyothi Quota (AP)'}</span>
                   <strong>{inputUnits} / 200 kWh</strong>
                 </div>
                 <div style={{ width: '100%', height: '10px', background: '#1f293d', borderRadius: '5px', overflow: 'hidden' }}>
@@ -916,15 +1250,23 @@ export default function App() {
                 </div>
                 <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '6px' }}>
                   {inputUnits <= 200 ? (
-                    <span style={{ color: '#34d399' }}>✓ Safe: You have {200 - inputUnits} units of free electricity headroom left.</span>
+                    <span style={{ color: '#34d399' }}>✓ Safe: You have {200 - inputUnits} units of free electricity headroom left under {selectedState} lifeline limits.</span>
                   ) : (
-                    <span style={{ color: '#fb7185' }}>⚠ Threshold Exceeded: Usage exceeded 200 units. Full ₹{tariffResult?.gross_total_inr} is payable.</span>
+                    <span style={{ color: '#fb7185' }}>⚠ Threshold Exceeded: Usage exceeded 200 units. Full ₹{tariffResult?.gross_total_inr?.toFixed(2)} is payable.</span>
                   )}
                 </div>
               </div>
 
-              {/* Telescopic Slab Breakdown Table */}
-              <h4 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '10px' }}>Telescopic Slab Calculation</h4>
+              {/* Official Telescopic Slab Breakdown Table */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <h4 style={{ fontSize: '14px', fontWeight: '600' }}>
+                  {selectedState === 'Andhra Pradesh' ? 'APERC LT-I Domestic Telescopic Slabs' : 'TGSPDCL Domestic Telescopic Slabs'}
+                </h4>
+                <span style={{ fontSize: '11px', color: '#9ca3af' }}>
+                  Effective Avg Rate: <strong style={{ color: '#06b6d4' }}>₹{tariffResult?.effective_rate_per_kwh || '4.69'}/kWh</strong>
+                </span>
+              </div>
+
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid #1f293d', color: '#9ca3af', textAlign: 'left' }}>
@@ -937,14 +1279,26 @@ export default function App() {
                 <tbody>
                   {(tariffResult?.slab_breakdown || []).map((slab, i) => (
                     <tr key={i} style={{ borderBottom: '1px solid #161e2e' }}>
-                      <td style={{ padding: '8px' }}>{slab.slab_range}</td>
+                      <td style={{ padding: '8px', color: '#e5e7eb' }}>{slab.slab_range}</td>
                       <td style={{ padding: '8px' }}>{slab.units_in_slab}</td>
-                      <td style={{ padding: '8px' }}>₹{slab.rate_per_kwh.toFixed(2)}</td>
-                      <td style={{ padding: '8px', textAlign: 'right' }}>₹{slab.amount_inr.toFixed(2)}</td>
+                      <td style={{ padding: '8px', color: '#fbbf24' }}>₹{slab.rate_per_kwh.toFixed(2)}</td>
+                      <td style={{ padding: '8px', textAlign: 'right', fontWeight: '600' }}>₹{slab.amount_inr.toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+
+              {/* Regulatory Notes Box */}
+              {tariffResult?.notes && tariffResult.notes.length > 0 && (
+                <div style={{ marginTop: '16px', padding: '12px 14px', background: 'rgba(6, 182, 212, 0.05)', borderRadius: '8px', borderLeft: '3px solid #06b6d4', fontSize: '12px' }}>
+                  <div style={{ fontWeight: '700', color: '#22d3ee', marginBottom: '4px' }}>Tariff Order Compliance Notes:</div>
+                  <ul style={{ margin: 0, paddingLeft: '16px', color: '#cbd5e1' }}>
+                    {tariffResult.notes.map((note, idx) => (
+                      <li key={idx} style={{ marginTop: '2px' }}>{note}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </div>
         </section>
@@ -1410,10 +1764,13 @@ export default function App() {
                   <div>
                     <h3 style={{ fontSize: '16px', fontWeight: '700' }}>24-Hour Solar Generation Profile</h3>
                     <p style={{ fontSize: '12px', color: '#9ca3af' }}>
-                      Hourly predicted generation with irradiance & temperature curves
+                      Dynamically recalculates with Solar Irradiance ({solarIrradiance} W/m²) & Temperature ({solarTemp}°C)
                     </p>
                   </div>
-                  <span className="badge badge-cyan">{solarPanel} kW System</span>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <span className="badge badge-amber">☀️ {solarIrradiance} W/m²</span>
+                    <span className="badge badge-cyan">{solarPanel} kW System</span>
+                  </div>
                 </div>
                 <div style={{ height: '280px' }}>
                   <ResponsiveContainer width="100%" height="100%">

@@ -197,6 +197,8 @@ def predict_single_hour(
 
 def predict_daily_profile(
     panel_capacity_kw: float = 5.0,
+    irradiance_wm2: Optional[float] = None,
+    temperature_c: Optional[float] = None,
     cloud_cover_pct: float = 25.0,
     battery_installed: bool = False,
     occupants: int = 3,
@@ -205,7 +207,8 @@ def predict_daily_profile(
 ) -> Dict[str, Any]:
     """
     Generates a 24-hour diurnal solar generation profile using
-    typical hourly irradiance and temperature curves for the given city.
+    hourly irradiance and temperature curves scaled to user input values.
+    Recalculates dynamically whenever solar irradiance or temperature changes.
     """
     if target_date is None:
         target_date = date.today()
@@ -213,9 +216,23 @@ def predict_daily_profile(
     hourly_points = []
     total_daily_kwh = 0.0
 
+    # Base clear sky noon irradiance reference in Hyderabad is 920 W/m²
+    ref_noon_irradiance = 920.0
+    irradiance_scale = (irradiance_wm2 / ref_noon_irradiance) if irradiance_wm2 is not None else 1.0
+    irradiance_scale = max(0.0, irradiance_scale)
+
     for hour in range(24):
-        irradiance = _TYPICAL_IRRADIANCE_HYDERABAD.get(hour, 0)
-        temperature = _TYPICAL_TEMPERATURE_HYDERABAD.get(hour, 28.0)
+        base_irr = _TYPICAL_IRRADIANCE_HYDERABAD.get(hour, 0)
+        # Scale the diurnal profile according to user-selected irradiance input
+        irradiance = max(0.0, base_irr * irradiance_scale)
+
+        base_temp = _TYPICAL_TEMPERATURE_HYDERABAD.get(hour, 28.0)
+        if temperature_c is not None:
+            # Shift daily temperature curve centered around user's peak temperature
+            temp_offset = temperature_c - 34.0
+            temperature = max(5.0, min(50.0, base_temp + temp_offset))
+        else:
+            temperature = base_temp
 
         # Apply cloud cover to reduce irradiance
         effective_irradiance = irradiance * (1.0 - 0.75 * (cloud_cover_pct / 100.0) ** 1.3)
@@ -254,6 +271,8 @@ def predict_daily_profile(
         "hourly_profile": hourly_points,
         "inputs": {
             "panel_capacity_kw": panel_capacity_kw,
+            "irradiance_wm2": irradiance_wm2 if irradiance_wm2 is not None else 600.0,
+            "temperature_c": temperature_c if temperature_c is not None else 30.0,
             "cloud_cover_pct": cloud_cover_pct,
             "battery_installed": battery_installed,
             "occupants": occupants,
@@ -265,6 +284,8 @@ def predict_daily_profile(
 
 def predict_with_savings(
     panel_capacity_kw: float = 5.0,
+    irradiance_wm2: Optional[float] = None,
+    temperature_c: Optional[float] = None,
     cloud_cover_pct: float = 25.0,
     battery_installed: bool = False,
     monthly_consumption_kwh: float = 185.0,
@@ -273,12 +294,15 @@ def predict_with_savings(
 ) -> Dict[str, Any]:
     """
     Full solar analysis: generation + financial savings + environmental impact.
-    Integrates with PM Surya Ghar subsidies and TGSPDCL tariff math.
+    Integrates with PM Surya Ghar subsidies and regional tariff math.
+    Recalculates based on input solar irradiance and panel parameters.
     """
     from .engine import calculate_solar_subsidy_pm_surya_ghar, GRID_EMISSION_FACTOR_KG_PER_KWH
 
     profile = predict_daily_profile(
         panel_capacity_kw=panel_capacity_kw,
+        irradiance_wm2=irradiance_wm2,
+        temperature_c=temperature_c,
         cloud_cover_pct=cloud_cover_pct,
         battery_installed=battery_installed,
         city=city,
