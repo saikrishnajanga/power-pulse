@@ -927,6 +927,18 @@ export default function App() {
               )}
             </div>
 
+            {/* Quick Visual Guide */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '12px', padding: '8px 12px', background: 'rgba(15, 23, 42, 0.5)', borderRadius: '6px', fontSize: '11px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: '#f59e0b' }}></span>
+                <span style={{ color: '#9ca3af' }}><strong style={{ color: '#fbbf24' }}>Amber Curve:</strong> Free electricity generated from sunrise to sunset</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: '12px', height: '2px', background: '#06b6d4', borderTop: '2px dashed #06b6d4' }}></span>
+                <span style={{ color: '#9ca3af' }}><strong style={{ color: '#22d3ee' }}>Cyan Line:</strong> Sunlight brightness ($W/m^2$) reaching your rooftop</span>
+              </div>
+            </div>
+
             <div style={{ height: '280px' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={solarData?.hourly_profile && solarData.hourly_profile.length > 0 ? solarData.hourly_profile : [
@@ -2147,18 +2159,31 @@ export default function App() {
 
               {/* 24-Hour Solar Generation Profile Chart */}
               <div className="glass-card" style={{ flex: 1 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
                   <div>
-                    <h3 style={{ fontSize: '16px', fontWeight: '700' }}>24-Hour Solar Generation Profile</h3>
+                    <h3 style={{ fontSize: '16px', fontWeight: '700' }}>24-Hour Solar Generation Profile (How Sunlight Turns Into Electricity)</h3>
                     <p style={{ fontSize: '12px', color: '#9ca3af' }}>
-                      Dynamically recalculates with Solar Irradiance ({solarIrradiance} W/m²) & Temperature ({solarTemp}°C)
+                      Shows real-time solar electricity output from sunrise to sunset based on sunlight intensity ({solarIrradiance} W/m²)
                     </p>
                   </div>
                   <div style={{ display: 'flex', gap: '6px' }}>
-                    <span className="badge badge-amber">☀️ {solarIrradiance} W/m²</span>
+                    <span className="badge badge-amber">☀️ {solarIrradiance} W/m² Sunlight</span>
                     <span className="badge badge-cyan">{solarPanel} kW System</span>
                   </div>
                 </div>
+
+                {/* Plain-English Visual Guide for Anyone to Understand */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', marginBottom: '14px', padding: '10px 14px', background: 'rgba(15, 23, 42, 0.7)', borderRadius: '8px', fontSize: '11px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#f59e0b', flexShrink: 0 }}></span>
+                    <span style={{ color: '#9ca3af' }}><strong style={{ color: '#fbbf24' }}>Amber Fill (Solar Power):</strong> Free electricity generated in kWh. Starts at 6 AM, peaks at noon, zero at night.</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ width: '14px', height: '3px', background: '#06b6d4', borderTop: '2px dashed #06b6d4', flexShrink: 0 }}></span>
+                    <span style={{ color: '#9ca3af' }}><strong style={{ color: '#22d3ee' }}>Cyan Line (Sunlight Intensity):</strong> Brightness reaching your panels (W/m²). More sunlight = higher output.</span>
+                  </div>
+                </div>
+
                 <div style={{ height: '280px' }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={solarData?.hourly_profile || []}>
@@ -2173,18 +2198,26 @@ export default function App() {
                       <YAxis yAxisId="left" stroke="#f59e0b" unit=" kWh" />
                       <YAxis yAxisId="right" orientation="right" stroke="#6b7280" unit=" W/m²" />
                       <Tooltip
-                        contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', borderRadius: '8px' }}
+                        contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', borderRadius: '8px', fontSize: '12px' }}
                         formatter={(value, name) => {
-                          if (name === 'Predicted kWh') return [value.toFixed(3) + ' kWh', name];
-                          if (name === 'Irradiance') return [value + ' W/m²', name];
+                          if (name === 'Generated Solar Power (kWh)') return [Number(value).toFixed(3) + ' kWh (Free Electricity)', name];
+                          if (name === 'Sunlight Intensity (W/m²)') return [value + ' W/m² (Irradiance)', name];
                           return [value + '°C', name];
                         }}
                       />
-                      <Area yAxisId="left" type="monotone" dataKey="predicted_kwh" stroke="#f59e0b" strokeWidth={2.5} fillOpacity={1} fill="url(#solarFill)" name="Predicted kWh" />
-                      <Line yAxisId="right" type="monotone" dataKey="irradiance_wm2" stroke="#06b6d4" strokeWidth={1.5} dot={false} strokeDasharray="4 4" name="Irradiance" />
+                      <Area yAxisId="left" type="monotone" dataKey="predicted_kwh" stroke="#f59e0b" strokeWidth={2.5} fillOpacity={1} fill="url(#solarFill)" name="Generated Solar Power (kWh)" />
+                      <Line yAxisId="right" type="monotone" dataKey="irradiance_wm2" stroke="#06b6d4" strokeWidth={1.5} dot={false} strokeDasharray="4 4" name="Sunlight Intensity (W/m²)" />
                       <Legend />
                     </AreaChart>
                   </ResponsiveContainer>
+                </div>
+
+                {/* Practical Takeaway Callout */}
+                <div style={{ marginTop: '12px', padding: '8px 12px', background: 'rgba(245, 158, 11, 0.08)', borderRadius: '6px', border: '1px solid rgba(245, 158, 11, 0.25)', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '14px' }}>💡</span>
+                  <span style={{ color: '#d1d5db' }}>
+                    <strong style={{ color: '#fbbf24' }}>What this means for you:</strong> During peak daylight (10 AM to 4 PM), your heavy loads (ACs, refrigerator, washing machine) run directly on <strong>100% free solar energy</strong>, saving money before grid charges apply.
+                  </span>
                 </div>
               </div>
             </div>
