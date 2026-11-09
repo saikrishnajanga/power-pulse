@@ -1,0 +1,72 @@
+{
+  "short_name": "PowerPulse",
+  "name": "PowerPulse: AI Energy & Cost Optimizer",
+  "description": "AI-driven residential electricity demand forecasting, regional tariff optimization (Telangana & Andhra Pradesh), bill scanner, and rooftop solar simulator.",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    },
+    {
+      "src": "/pwa-192x192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any"
+    },
+    {
+      "src": "/maskable-icon-512x512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
+    }
+  ],
+  "start_url": "/",
+  "id": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "window-controls-overlay"],
+  "theme_color": "#0b0f19",
+  "background_color": "#0b0f19",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["productivity", "utilities", "finance"],
+  "shortcuts": [
+    {
+      "name": "Overview Dashboard",
+      "short_name": "Overview",
+      "description": "View overall electricity demand and solar potential",
+      "url": "/#overview",
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "AI Demand Forecast",
+      "short_name": "Forecast",
+      "description": "Check XGBoost weekly and monthly demand predictions",
+      "url": "/#forecast",
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Upload & Scan Bills",
+      "short_name": "Scan Bill",
+      "description": "Scan utility bills with multilingual OCR",
+      "url": "/#bills",
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Solar & Eco-Alternatives",
+      "short_name": "Solar",
+      "description": "Calculate rooftop solar savings and PM Surya Ghar subsidies",
+      "url": "/#recommendations",
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
+    }
+  ],
+  "prefer_related_applications": false
+}

@@ -558,6 +558,20 @@ FRONTEND_DIST = settings.BASE_DIR / "frontend" / "dist"
 if FRONTEND_DIST.exists():
     app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
 
+    @app.get("/manifest.json", include_in_schema=False)
+    def serve_manifest():
+        manifest_file = FRONTEND_DIST / "manifest.json"
+        if manifest_file.exists():
+            return FileResponse(manifest_file, media_type="application/manifest+json")
+        raise HTTPException(status_code=404, detail="Manifest not found")
+
+    @app.get("/{file_name:path}", include_in_schema=False)
+    def serve_root_files(file_name: str):
+        target = FRONTEND_DIST / file_name
+        if target.is_file():
+            return FileResponse(target)
+        return FileResponse(FRONTEND_DIST / "index.html")
+
     @app.get("/", include_in_schema=False)
     def serve_frontend():
         """Serves the built React Web Application dashboard."""
