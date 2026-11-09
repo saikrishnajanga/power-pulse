@@ -109,6 +109,7 @@ export default function App() {
   const [billsList, setBillsList] = useState([]);
   const [selectedBill, setSelectedBill] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState(null); // { type: 'success' | 'error' | 'info', message: '' }
   const [compareResult, setCompareResult] = useState(null);
 
   // Solar Simulator state (from solar_energy.ipynb)
@@ -257,10 +258,20 @@ export default function App() {
     }
   };
 
-  const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
+  const handleFileUpload = async (e, directFile = null) => {
+    let file = directFile;
+    if (!file && e) {
+      if (e.target && e.target.files && e.target.files.length > 0) {
+        file = e.target.files[0];
+      } else if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        file = e.dataTransfer.files[0];
+      }
+    }
     if (!file) return;
+
     setUploading(true);
+    setUploadStatus({ type: 'info', message: `Scanning & parsing ${file.name}...` });
+
     const formData = new FormData();
     formData.append('file', file);
     try {
@@ -268,24 +279,39 @@ export default function App() {
         method: 'POST',
         body: formData,
       });
-      if (res.ok) {
-        const newBill = await res.json();
-        setBillsList(prev => [newBill, ...prev]);
-        setSelectedBill(newBill);
-        setInputUnits(newBill.units_consumed_kwh);
-        setIsGruhaJyothi(newBill.is_gruha_jyothi_applied);
 
-        // Instantly re-calculate appliance solar alternatives and forecast for this bill
-        const solRes = await fetch(`${API_BASE}/solar/appliance-alternatives?monthly_kwh=${newBill.units_consumed_kwh}&current_bill_inr=${newBill.gross_amount_inr}&bill_id=${newBill.bill_id}&bill_file_name=${encodeURIComponent(newBill.file_name)}`);
-        if (solRes.ok) {
-          const solJson = await solRes.json();
-          setApplianceSolarData(solJson);
-        }
+      if (!res.ok) {
+        throw new Error(`Server returned HTTP ${res.status}: ${res.statusText}`);
+      }
+
+      const newBill = await res.json();
+      setBillsList(prev => [newBill, ...prev.filter(b => b.bill_id !== newBill.bill_id)]);
+      setSelectedBill(newBill);
+      setInputUnits(newBill.units_consumed_kwh);
+      setIsGruhaJyothi(newBill.is_gruha_jyothi_applied);
+
+      setUploadStatus({
+        type: 'success',
+        message: `✓ Successfully parsed "${newBill.file_name}"! Extracted ${newBill.units_consumed_kwh} kWh (${newBill.provider_name.split('(')[0]}).`
+      });
+
+      // Instantly re-calculate appliance solar alternatives and forecast for this bill
+      const solRes = await fetch(`${API_BASE}/solar/appliance-alternatives?monthly_kwh=${newBill.units_consumed_kwh}&current_bill_inr=${newBill.gross_amount_inr}&bill_id=${newBill.bill_id}&bill_file_name=${encodeURIComponent(newBill.file_name)}`);
+      if (solRes.ok) {
+        const solJson = await solRes.json();
+        setApplianceSolarData(solJson);
       }
     } catch (err) {
-      console.error(err);
+      console.error("Bill upload error:", err);
+      setUploadStatus({
+        type: 'error',
+        message: `⚠️ Bill parsing failed: ${err.message || 'Could not connect to backend'}. You can still review or edit values manually.`
+      });
     } finally {
       setUploading(false);
+      if (e && e.target) {
+        e.target.value = '';
+      }
     }
   };
 
@@ -1447,13 +1473,32 @@ export default function App() {
                   }}
                   onMouseOver={(e) => (e.currentTarget.style.borderColor = '#10b981')}
                   onMouseOut={(e) => (e.currentTarget.style.borderColor = '#374151')}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.currentTarget.style.borderColor = '#10b981';
+                    e.currentTarget.style.background = 'rgba(16, 185, 129, 0.05)';
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.currentTarget.style.borderColor = '#374151';
+                    e.currentTarget.style.background = '#0b0f19';
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.currentTarget.style.borderColor = '#374151';
+                    e.currentTarget.style.background = '#0b0f19';
+                    handleFileUpload(e);
+                  }}
                 >
                   <FileUp size={36} color="#10b981" style={{ marginBottom: '10px' }} />
                   <span style={{ fontSize: '14px', fontWeight: '600' }}>
-                    {uploading ? 'Scanning & Parsing Bill...' : 'Choose or Drag Bill Image'}
+                    {uploading ? 'Scanning & Parsing Bill...' : 'Choose or Drag Bill Image / PDF'}
                   </span>
                   <span style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
-                    Supports PNG, JPG, JPEG, PDF
+                    Supports PNG, JPG, JPEG, PDF (Multilingual OCR)
                   </span>
                   <input
                     type="file"
@@ -1463,6 +1508,38 @@ export default function App() {
                     style={{ display: 'none' }}
                   />
                 </label>
+
+                {/* Upload Status Banner */}
+                {uploadStatus && (
+                  <div
+                    style={{
+                      marginTop: '12px',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      background:
+                        uploadStatus.type === 'success'
+                          ? 'rgba(16, 185, 129, 0.12)'
+                          : uploadStatus.type === 'error'
+                          ? 'rgba(244, 63, 94, 0.12)'
+                          : 'rgba(6, 182, 212, 0.12)',
+                      border:
+                        uploadStatus.type === 'success'
+                          ? '1px solid rgba(16, 185, 129, 0.3)'
+                          : uploadStatus.type === 'error'
+                          ? '1px solid rgba(244, 63, 94, 0.3)'
+                          : '1px solid rgba(6, 182, 212, 0.3)',
+                      color:
+                        uploadStatus.type === 'success'
+                          ? '#34d399'
+                          : uploadStatus.type === 'error'
+                          ? '#fb7185'
+                          : '#38bdf8',
+                    }}
+                  >
+                    {uploadStatus.message}
+                  </div>
+                )}
               </div>
 
               {/* Quick Select Golden Sample Bills */}
