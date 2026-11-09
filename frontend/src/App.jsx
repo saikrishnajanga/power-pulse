@@ -680,6 +680,16 @@ export default function App() {
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
+
+              {/* Dynamic MAD Threshold Callout & Tab Jump */}
+              <div style={{ marginTop: '12px', padding: '10px 14px', background: 'rgba(244, 63, 94, 0.08)', borderRadius: '8px', border: '1px solid rgba(244, 63, 94, 0.25)', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                <span>
+                  <strong style={{ color: '#f43f5e' }}>🔴 Dynamic Red Dotted Threshold:</strong> Calculated via Median Absolute Deviation (MAD) = <code style={{ color: '#38bdf8' }}>Median + 3 × 1.4826 × MAD</code>. Points above this line trigger spike warnings.
+                </span>
+                <button className="btn-secondary" onClick={() => setActiveTab('forecast')} style={{ fontSize: '12px', padding: '4px 12px', whiteSpace: 'nowrap' }}>
+                  Open Full AI Forecast Tab →
+                </button>
+              </div>
             </div>
 
             {/* Consumption Breakdown Donut */}
@@ -714,6 +724,122 @@ export default function App() {
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+
+          {/* 24-Hour Solar Generation Profile Quick-View on Overview Tab */}
+          <div className="glass-card" style={{ marginTop: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Sun size={18} color="#f59e0b" />
+                  <h3 style={{ fontSize: '16px', fontWeight: '700' }}>24-Hour Solar Generation Profile & Rooftop Potential</h3>
+                  <span className="badge badge-amber">Solar ML Model</span>
+                </div>
+                <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '2px' }}>
+                  Recalculates dynamically with Solar Irradiance ({solarIrradiance} W/m²), Temperature ({solarTemp}°C) & System Size ({solarPanel} kW)
+                </p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span className="badge badge-amber">☀️ {solarIrradiance} W/m²</span>
+                <span className="badge badge-cyan">{solarPanel} kW System</span>
+                <button className="btn-secondary" onClick={() => setActiveTab('recommendations')} style={{ fontSize: '12px', padding: '6px 14px' }}>
+                  Open Solar Simulator & Subsidy Tab →
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Irradiance & System Size Sliders on Overview */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '18px', padding: '14px', background: 'rgba(15, 23, 42, 0.6)', borderRadius: '10px' }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
+                  <span style={{ color: '#9ca3af' }}>Solar Irradiance:</span>
+                  <strong style={{ color: '#fbbf24' }}>{solarIrradiance} W/m²</strong>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1100"
+                  step="10"
+                  value={solarIrradiance}
+                  onChange={(e) => setSolarIrradiance(Number(e.target.value))}
+                  style={{ width: '100%', accentColor: '#f59e0b' }}
+                />
+              </div>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
+                  <span style={{ color: '#9ca3af' }}>Panel Capacity:</span>
+                  <strong style={{ color: '#06b6d4' }}>{solarPanel} kW</strong>
+                </div>
+                <input
+                  type="range"
+                  min="1"
+                  max="10"
+                  step="0.5"
+                  value={solarPanel}
+                  onChange={(e) => setSolarPanel(Number(e.target.value))}
+                  style={{ width: '100%', accentColor: '#06b6d4' }}
+                />
+              </div>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
+                  <span style={{ color: '#9ca3af' }}>Ambient Temperature:</span>
+                  <strong style={{ color: '#f43f5e' }}>{solarTemp}°C</strong>
+                </div>
+                <input
+                  type="range"
+                  min="10"
+                  max="45"
+                  step="1"
+                  value={solarTemp}
+                  onChange={(e) => setSolarTemp(Number(e.target.value))}
+                  style={{ width: '100%', accentColor: '#f43f5e' }}
+                />
+              </div>
+              {solarData && (
+                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', borderLeft: '1px solid #374151', paddingLeft: '16px' }}>
+                  <div style={{ fontSize: '11px', color: '#9ca3af' }}>Est. Daily Solar Yield</div>
+                  <div style={{ fontSize: '20px', fontWeight: '800', color: '#34d399' }}>
+                    {solarData.generation?.daily_kwh || (solarPanel * 4.2).toFixed(1)} <span style={{ fontSize: '12px' }}>kWh/day</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ height: '280px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={solarData?.hourly_profile && solarData.hourly_profile.length > 0 ? solarData.hourly_profile : [
+                  { time_label: '06:00', predicted_kwh: 0.05, irradiance_wm2: 80 },
+                  { time_label: '08:00', predicted_kwh: 0.45, irradiance_wm2: 320 },
+                  { time_label: '10:00', predicted_kwh: 1.20, irradiance_wm2: 680 },
+                  { time_label: '12:00', predicted_kwh: 1.85, irradiance_wm2: 920 },
+                  { time_label: '14:00', predicted_kwh: 1.60, irradiance_wm2: 780 },
+                  { time_label: '16:00', predicted_kwh: 0.80, irradiance_wm2: 410 },
+                  { time_label: '18:00', predicted_kwh: 0.12, irradiance_wm2: 90 },
+                ]}>
+                  <defs>
+                    <linearGradient id="solarFillOverview" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.5} />
+                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1f293d" />
+                  <XAxis dataKey="time_label" stroke="#6b7280" />
+                  <YAxis yAxisId="left" stroke="#f59e0b" unit=" kWh" />
+                  <YAxis yAxisId="right" orientation="right" stroke="#6b7280" unit=" W/m²" />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', borderRadius: '8px', fontSize: '12px' }}
+                    formatter={(value, name) => {
+                      if (name === 'Predicted Solar (kWh)') return [Number(value).toFixed(3) + ' kWh', name];
+                      if (name === 'Irradiance (W/m²)') return [value + ' W/m²', name];
+                      return [value, name];
+                    }}
+                  />
+                  <Area yAxisId="left" type="monotone" dataKey="predicted_kwh" stroke="#f59e0b" strokeWidth={2.5} fillOpacity={1} fill="url(#solarFillOverview)" name="Predicted Solar (kWh)" />
+                  <Line yAxisId="right" type="monotone" dataKey="irradiance_wm2" stroke="#06b6d4" strokeWidth={1.5} dot={false} strokeDasharray="4 4" name="Irradiance (W/m²)" />
+                  <Legend />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
           </div>
 
