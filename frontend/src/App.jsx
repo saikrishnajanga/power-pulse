@@ -198,6 +198,79 @@ export default function App() {
   });
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileMessage, setProfileMessage] = useState(null);
+  const [profileAppliances, setProfileAppliances] = useState(() =>
+    DEFAULT_14_APPLIANCES.map(a => ({
+      ...a,
+      installed: true,
+      quantity: a.quantity || 1,
+    }))
+  );
+
+  const handleOpenProfileModal = () => {
+    // Synchronize profileAppliances with current appliancesList & userProfile
+    const synced = DEFAULT_14_APPLIANCES.map(def => {
+      const found = appliancesList.find(a => a.id === def.id || a.name.toLowerCase() === def.name.toLowerCase());
+      if (found) {
+        const qty = (def.id === 'ac' && userProfile.ac_units_count) ? userProfile.ac_units_count : (found.quantity || def.quantity || 1);
+        return {
+          ...def,
+          ...found,
+          quantity: qty,
+          installed: qty > 0,
+        };
+      }
+      return {
+        ...def,
+        quantity: def.quantity || 1,
+        installed: false,
+      };
+    });
+    setProfileAppliances(synced);
+    setShowProfileModal(true);
+  };
+
+  const handleToggleApplianceInProfile = (index) => {
+    setProfileAppliances(prev => {
+      const next = [...prev];
+      const cur = next[index];
+      const willInstall = !cur.installed;
+      const def = DEFAULT_14_APPLIANCES.find(d => d.id === cur.id) || cur;
+      next[index] = {
+        ...cur,
+        installed: willInstall,
+        quantity: willInstall ? (cur.quantity > 0 ? cur.quantity : (def.quantity || 1)) : 0,
+      };
+      return next;
+    });
+  };
+
+  const handleUpdateApplianceQtyInProfile = (index, delta) => {
+    setProfileAppliances(prev => {
+      const next = [...prev];
+      const cur = next[index];
+      const newQty = Math.max(0, Math.min(20, (cur.quantity || 0) + delta));
+      next[index] = {
+        ...cur,
+        quantity: newQty,
+        installed: newQty > 0,
+      };
+      return next;
+    });
+  };
+
+  const handleSetApplianceQtyInProfile = (index, val) => {
+    const num = Math.max(0, Math.min(20, parseInt(val, 10) || 0));
+    setProfileAppliances(prev => {
+      const next = [...prev];
+      const cur = next[index];
+      next[index] = {
+        ...cur,
+        quantity: num,
+        installed: num > 0,
+      };
+      return next;
+    });
+  };
 
   // Appliance Solar Alternatives State (User Requested Flow)
   const [applianceSolarData, setApplianceSolarData] = useState(null);
@@ -273,6 +346,9 @@ export default function App() {
         if (uRes.ok) {
           const uJson = await uRes.json();
           setUserProfile(uJson);
+          if (uJson.installed_appliances && uJson.installed_appliances.length > 0) {
+            setAppliancesList(uJson.installed_appliances);
+          }
         }
 
         // Fetch Appliance Solar Alternatives for current bill
@@ -618,15 +694,51 @@ export default function App() {
         }
       }
 
+      // Filter active installed appliances from profile modal
+      const activeAppliances = profileAppliances
+        .filter(a => a.installed && (a.quantity || 0) > 0)
+        .map(a => ({
+          id: a.id,
+          name: a.name,
+          category: a.category,
+          icon: a.icon,
+          power_rating_kw: a.power_rating_kw,
+          daily_hours: a.daily_hours,
+          quantity: a.quantity || 1,
+          duty_cycle: a.duty_cycle || 1.0,
+          benchmark_percentage: a.benchmark_percentage || 5.0,
+          recommendation: a.recommendation || '',
+        }));
+
+      const finalAppliances = activeAppliances.length > 0 ? activeAppliances : DEFAULT_14_APPLIANCES;
+
+      // Backward compatible AC count & presence
+      const acApp = finalAppliances.find(a => a.id === 'ac' || a.name.toLowerCase().includes('air conditioner'));
+      const acCount = acApp ? (acApp.quantity || 0) : 0;
+
+      const profilePayload = {
+        ...userProfile,
+        has_air_conditioner: acCount > 0,
+        ac_units_count: acCount,
+        installed_appliances: finalAppliances,
+      };
+
       const res = await fetch(`${API_BASE}/me/profile`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userProfile),
+        body: JSON.stringify(profilePayload),
       });
       if (res.ok) {
         const updated = await res.json();
         setUserProfile(updated);
-        setProfileMessage({ type: 'success', text: `✓ Profile saved! Location set to ${updated.state} (${updated.location_type.toUpperCase()}).` });
+        // Sync active appliances list and recalculate disaggregation & overview donut
+        setAppliancesList(finalAppliances);
+        await handleRecalculateAppliances(finalAppliances);
+
+        setProfileMessage({
+          type: 'success',
+          text: `✓ Profile & appliances saved! Configured ${finalAppliances.length} appliances across ${updated.state} (${updated.location_type.toUpperCase()}).`
+        });
         setTimeout(() => setProfileMessage(null), 3000);
       }
     } catch (err) {
@@ -801,7 +913,7 @@ export default function App() {
           </div>
           <button
             className="btn-secondary"
-            onClick={() => setShowProfileModal(true)}
+            onClick={handleOpenProfileModal}
             style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}
           >
             <User size={15} color="#06b6d4" />
@@ -3381,7 +3493,7 @@ export default function App() {
       {/* -------------------- USER PROFILE & CONSENT MODAL (EPIC E-02) -------------------- */}
       {showProfileModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(6px)', padding: '20px' }}>
-          <div className="glass-card" style={{ maxWidth: '580px', width: '100%', maxHeight: '90vh', overflowY: 'auto', background: '#111827', border: '1px solid #374151', borderRadius: '16px', padding: '24px' }}>
+          <div className="glass-card" style={{ maxWidth: '740px', width: '100%', maxHeight: '92vh', overflowY: 'auto', background: '#111827', border: '1px solid #374151', borderRadius: '16px', padding: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', borderBottom: '1px solid #1f293d', paddingBottom: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <User size={20} color="#10b981" />
@@ -3399,7 +3511,7 @@ export default function App() {
             )}
 
             {/* Profile Inputs */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '18px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
               <div>
                 <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Consumer Name</label>
                 <input
@@ -3470,15 +3582,180 @@ export default function App() {
                 />
               </div>
               <div>
-                <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Air Conditioners Installed</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="6"
-                  value={userProfile.ac_units_count}
-                  onChange={(e) => setUserProfile({ ...userProfile, ac_units_count: Number(e.target.value) })}
-                  style={{ width: '100%', padding: '8px 10px', background: '#0b0f19', border: '1px solid #374151', borderRadius: '6px', color: '#fff', fontSize: '14px' }}
-                />
+                <label style={{ fontSize: '12px', color: '#10b981', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Active Appliances Summary</label>
+                <div style={{ padding: '8px 12px', background: '#0b0f19', border: '1px solid #10b98144', borderRadius: '6px', color: '#34d399', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '38px' }}>
+                  <span>⚡ {profileAppliances.filter(a => a.installed).length} of {profileAppliances.length} Selected</span>
+                  <span style={{ fontSize: '11px', color: '#9ca3af', fontWeight: '500' }}>{profileAppliances.filter(a => a.installed).reduce((acc, a) => acc + (a.quantity || 1), 0)} Units Total</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Installed Household Appliances Section (Replaced Single AC with all 14 Household Appliances) */}
+            <div style={{ padding: '14px', background: '#0b0f19', borderRadius: '10px', border: '1px solid #1f293d', marginBottom: '18px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: '700', color: '#10b981' }}>⚡ Installed Household Appliances</span>
+                    <span style={{ fontSize: '11px', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', padding: '2px 8px', borderRadius: '12px', fontWeight: '600' }}>
+                      {profileAppliances.filter(a => a.installed).length} / {profileAppliances.length} Selected
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '11px', color: '#9ca3af', margin: '3px 0 0 0' }}>
+                    Select all appliances installed in your home and specify unit counts. Disaggregation & solar eco-alternatives sync automatically.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProfileAppliances(prev => prev.map(a => ({
+                        ...a,
+                        installed: true,
+                        quantity: Math.max(1, a.quantity || 1)
+                      })));
+                    }}
+                    style={{ fontSize: '11px', padding: '4px 9px', background: '#1f293d', color: '#06b6d4', border: '1px solid #374151', borderRadius: '4px', cursor: 'pointer', fontWeight: '600' }}
+                  >
+                    Select All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const essentials = ['refrigerator', 'ceiling_fans', 'water_heater', 'led_lights', 'ac'];
+                      setProfileAppliances(prev => prev.map(a => ({
+                        ...a,
+                        installed: essentials.includes(a.id),
+                        quantity: essentials.includes(a.id) ? Math.max(1, a.quantity || 1) : 0,
+                      })));
+                    }}
+                    style={{ fontSize: '11px', padding: '4px 9px', background: '#1f293d', color: '#10b981', border: '1px solid #374151', borderRadius: '4px', cursor: 'pointer', fontWeight: '600' }}
+                  >
+                    Essentials
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProfileAppliances(DEFAULT_14_APPLIANCES.map(a => ({ ...a, installed: true })));
+                    }}
+                    style={{ fontSize: '11px', padding: '4px 9px', background: '#1f293d', color: '#9ca3af', border: '1px solid #374151', borderRadius: '4px', cursor: 'pointer', fontWeight: '600' }}
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+
+              {/* 14 Appliances Interactive Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '8px', maxHeight: '280px', overflowY: 'auto', paddingRight: '4px' }}>
+                {profileAppliances.map((app, idx) => {
+                  const isChecked = !!app.installed;
+                  return (
+                    <div
+                      key={app.id || idx}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 10px',
+                        background: isChecked ? 'rgba(16, 185, 129, 0.08)' : '#111827',
+                        border: isChecked ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid #1f293d',
+                        borderRadius: '8px',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleToggleApplianceInProfile(idx)}
+                          style={{ width: '16px', height: '16px', accentColor: '#10b981', cursor: 'pointer', flexShrink: 0 }}
+                        />
+                        <span style={{ fontSize: '16px', flexShrink: 0 }}>{app.icon || '⚡'}</span>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{
+                            fontSize: '12px',
+                            fontWeight: isChecked ? '600' : '500',
+                            color: isChecked ? '#f3f4f6' : '#9ca3af',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}>
+                            {app.name}
+                          </div>
+                          <div style={{ fontSize: '10px', color: '#6b7280' }}>
+                            {app.power_rating_kw} kW • {app.daily_hours}h/day
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Quantity Stepper */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px', marginLeft: '6px', flexShrink: 0 }}>
+                        <button
+                          type="button"
+                          disabled={!isChecked || (app.quantity || 1) <= 1}
+                          onClick={() => handleUpdateApplianceQtyInProfile(idx, -1)}
+                          style={{
+                            width: '24px',
+                            height: '24px',
+                            borderRadius: '4px',
+                            border: '1px solid #374151',
+                            background: '#1f293d',
+                            color: '#fff',
+                            fontSize: '12px',
+                            cursor: (!isChecked || (app.quantity || 1) <= 1) ? 'not-allowed' : 'pointer',
+                            opacity: (!isChecked || (app.quantity || 1) <= 1) ? 0.35 : 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: 0
+                          }}
+                        >
+                          -
+                        </button>
+                        <input
+                          type="number"
+                          min="0"
+                          max="20"
+                          disabled={!isChecked}
+                          value={isChecked ? (app.quantity || 1) : 0}
+                          onChange={(e) => handleSetApplianceQtyInProfile(idx, e.target.value)}
+                          style={{
+                            width: '34px',
+                            textAlign: 'center',
+                            padding: '2px 0',
+                            background: isChecked ? '#0b0f19' : '#1f293d',
+                            border: '1px solid #374151',
+                            borderRadius: '4px',
+                            color: isChecked ? '#34d399' : '#6b7280',
+                            fontSize: '12px',
+                            fontWeight: '700'
+                          }}
+                        />
+                        <button
+                          type="button"
+                          disabled={!isChecked}
+                          onClick={() => handleUpdateApplianceQtyInProfile(idx, 1)}
+                          style={{
+                            width: '24px',
+                            height: '24px',
+                            borderRadius: '4px',
+                            border: '1px solid #374151',
+                            background: '#1f293d',
+                            color: '#fff',
+                            fontSize: '12px',
+                            cursor: !isChecked ? 'not-allowed' : 'pointer',
+                            opacity: !isChecked ? 0.35 : 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: 0
+                          }}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

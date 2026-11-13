@@ -23,6 +23,7 @@ class UserProfile(BaseModel):
     data_consent_granted: bool = True
     consent_policy_version: str = "DPDP-Act-2023-v1.2"
     consent_timestamp: str = "2026-11-06T10:00:00"
+    installed_appliances: Optional[List[dict]] = None
 
 
 class ConsentUpdateRequest(BaseModel):

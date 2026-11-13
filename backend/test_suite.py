@@ -107,4 +107,33 @@ print(f"✓ Bill confirmed & reconciled: Consumer '{conf_bill['consumer_name']}'
 assert conf_bill["units_consumed_kwh"] == 200.0
 assert conf_bill["sanctioned_load_kw"] == 3.0
 
-print("=== ALL 7 SCENARIOS VERIFIED SUCCESSFULLY! ===")
+# SCENARIO 8: Profile Multi-Appliance Configuration & DPDP Consent
+prof_req = {
+    "user_id": "user_demo_01",
+    "name": "Telangana Resident",
+    "email": "consumer@example.com",
+    "city": "Hyderabad",
+    "state": "Telangana",
+    "location_type": "rural",
+    "provider": "TGSPDCL (Telangana Southern Power)",
+    "tariff_category": "LT-I Domestic",
+    "household_size": 4,
+    "has_air_conditioner": True,
+    "ac_units_count": 2,
+    "installed_appliances": [
+        {"id": "ac", "name": "Air Conditioner", "quantity": 2, "power_rating_kw": 1.5, "daily_hours": 6.0},
+        {"id": "refrigerator", "name": "Refrigerator", "quantity": 1, "power_rating_kw": 0.18, "daily_hours": 24.0},
+        {"id": "ceiling_fans", "name": "Ceiling Fans", "quantity": 4, "power_rating_kw": 0.075, "daily_hours": 12.0},
+    ],
+    "data_consent_granted": True,
+    "consent_policy_version": "DPDP-Act-2023-v1.2",
+    "consent_timestamp": "2026-11-13T09:00:00"
+}
+res = client.put("/api/v1/me/profile", json=prof_req)
+assert res.status_code == 200, f"Profile update failed: {res.text}"
+saved_prof = res.json()
+assert len(saved_prof["installed_appliances"]) == 3, "Should store 3 installed appliances"
+assert saved_prof["installed_appliances"][0]["id"] == "ac"
+print(f"✓ Profile Multi-Appliance persistence: {len(saved_prof['installed_appliances'])} appliances saved and verified via API.")
+
+print("=== ALL 8 SCENARIOS VERIFIED SUCCESSFULLY! ===")
