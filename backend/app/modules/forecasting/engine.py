@@ -8,9 +8,10 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
-from .models import ForecastResponse, HourlyForecastPoint, ModelMetrics
+from .models import ForecastResponse, HourlyForecastPoint, ModelMetrics, SynchronizedAnomaly
 from .features import FEATURE_COLUMNS, TELANGANA_HOLIDAYS
 from ..tariffs.engine import calculate_energy_charge
+from ..anomaly.detector import AnomalyDetector
 from ...core.config import settings
 
 
@@ -142,6 +143,32 @@ class ForecastingEngine:
             hist_vals.append(prediction)
             last_time = next_time
 
+        # Run synchronized Anomaly Detection on the identical historical dataset
+        anomaly_map = {}
+        anomalies_list: List[SynchronizedAnomaly] = []
+        try:
+            detector = AnomalyDetector()
+            hist_dts = [dt.to_pydatetime() if hasattr(dt, "to_pydatetime") else dt for dt in history.index]
+            hist_vals_raw = [float(v) for v in history.values]
+            anomaly_summary = detector.analyze(hist_dts, hist_vals_raw)
+            for ap in anomaly_summary.points:
+                if ap.is_anomaly:
+                    dt_key = ap.timestamp.isoformat()
+                    anomaly_map[dt_key] = ap
+                    anomalies_list.append(
+                        SynchronizedAnomaly(
+                            timestamp=ap.timestamp,
+                            actual_kwh=round(ap.actual_kwh, 3),
+                            expected_normal_kwh=round(ap.rolling_baseline_kwh, 3),
+                            difference_kwh=round(ap.actual_kwh - ap.rolling_baseline_kwh, 3),
+                            anomaly_type="High Spike" if ap.is_high_spike else ("Surge" if ap.actual_kwh > ap.rolling_baseline_kwh else "Drop"),
+                            likely_cause=ap.likely_cause or "Abnormal consumption deviating from 24h baseline",
+                            severity="High" if ap.is_high_spike else "Medium",
+                        )
+                    )
+        except Exception:
+            pass
+
         # Build seamless continuous timeline:
         # 1. Historical actual points (past 24 hours of baseline)
         # 2. Transition anchor point at T_0 (Now) with identical actual & predicted values (Zero Prediction Gap)
@@ -155,16 +182,26 @@ class ForecastingEngine:
             med = float(hour_stats.loc[h_hr, "median"])
             mad = float(hour_stats.loc[h_hr, "mad"])
             th = round(med + 3.0 * 1.4826 * mad, 3)
-            is_spk = actual_val > th
+            dt_key = dt_py.isoformat()
+            hist_anom = anomaly_map.get(dt_key)
+            is_anom = hist_anom is not None or (actual_val > th)
+            anom_cause = hist_anom.likely_cause if hist_anom else ("Dynamic MAD threshold breach" if actual_val > th else None)
+            anom_type = "High Spike" if (hist_anom and hist_anom.is_high_spike) or (actual_val > th) else ("Surge" if is_anom else None)
+
             points.append(
                 HourlyForecastPoint(
                     timestamp=dt_py,
                     actual_kwh=round(float(actual_val), 3),
                     predicted_kwh=None,
-                    potential_spike=bool(is_spk),
-                    status="Historical Spike" if is_spk else "Normal",
+                    potential_spike=bool(is_anom),
+                    status="Historical Spike" if is_anom else "Normal",
                     spike_threshold_kwh=th,
                     point_type="actual",
+                    is_anomaly=bool(is_anom),
+                    expected_normal_kwh=round(hist_anom.rolling_baseline_kwh if hist_anom else med, 3),
+                    difference_kwh=round(float(actual_val) - (hist_anom.rolling_baseline_kwh if hist_anom else med), 3) if is_anom else None,
+                    anomaly_cause=anom_cause,
+                    anomaly_type=anom_type,
                 )
             )
 
@@ -174,20 +211,46 @@ class ForecastingEngine:
         t0_med = float(hour_stats.loc[transition_dt.hour, "median"])
         t0_mad = float(hour_stats.loc[transition_dt.hour, "mad"])
         t0_th = round(t0_med + 3.0 * 1.4826 * t0_mad, 3)
+        t0_anom = anomaly_map.get(transition_dt.isoformat())
+        t0_is_anom = t0_anom is not None or (t0_val > t0_th)
 
         if points:
             points[-1] = HourlyForecastPoint(
                 timestamp=transition_dt,
                 actual_kwh=t0_val,
                 predicted_kwh=t0_val,  # Anchor coordinate eliminates the visual prediction gap
-                potential_spike=bool(t0_val > t0_th),
+                potential_spike=bool(t0_is_anom),
                 status="Now (Transition)",
                 spike_threshold_kwh=t0_th,
                 point_type="transition",
+                is_anomaly=bool(t0_is_anom),
+                expected_normal_kwh=round(t0_med, 3),
+                difference_kwh=round(t0_val - t0_med, 3) if t0_is_anom else None,
+                anomaly_cause=t0_anom.likely_cause if t0_anom else None,
+                anomaly_type="Peak Demand Transition" if t0_is_anom else None,
             )
 
         # Future forecast points
         for dt, p, s, th in zip(future_times, predictions, spike_flags, thresholds):
+            h_med = float(hour_stats.loc[dt.hour, "median"])
+            diff = round(p - th, 3) if s else None
+            anom_cause = (
+                f"Predicted demand of {p} kWh breaches dynamic hourly MAD ceiling ({th} kWh). Risk of peak slab surcharge."
+                if s else None
+            )
+            if s:
+                anomalies_list.append(
+                    SynchronizedAnomaly(
+                        timestamp=dt,
+                        actual_kwh=p,
+                        expected_normal_kwh=th,
+                        difference_kwh=diff,
+                        anomaly_type="Forecasted Peak Spike",
+                        likely_cause=anom_cause,
+                        severity="High",
+                    )
+                )
+
             points.append(
                 HourlyForecastPoint(
                     timestamp=dt,
@@ -197,6 +260,11 @@ class ForecastingEngine:
                     status="Potential Spike" if s else "Normal",
                     spike_threshold_kwh=th,
                     point_type="predicted",
+                    is_anomaly=s,
+                    expected_normal_kwh=th if s else round(h_med, 3),
+                    difference_kwh=diff,
+                    anomaly_cause=anom_cause,
+                    anomaly_type="Forecasted Peak Spike" if s else None,
                 )
             )
 
@@ -207,7 +275,7 @@ class ForecastingEngine:
 
         summary_msg = (
             f"Projected consumption for the next {days} days is {total_kwh} kWh (approx. ₹{cost_est}). "
-            f"Identified {spike_count} potential spike intervals."
+            f"Identified {len(anomalies_list)} synchronized anomaly/spike events across continuous dataset."
         )
 
         return ForecastResponse(
@@ -220,6 +288,8 @@ class ForecastingEngine:
             estimated_cost_inr=cost_est,
             potential_spike_count=spike_count,
             points=points,
+            anomalies=anomalies_list,
+            is_preliminary=False,
             summary_message=summary_msg,
         )
 

@@ -2,9 +2,20 @@
 Pydantic Schemas for Forecasting Engine.
 PRISM-M Epic E-07.
 """
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, Field
+
+
+class SynchronizedAnomaly(BaseModel):
+    timestamp: datetime
+    actual_kwh: float
+    expected_normal_kwh: float
+    difference_kwh: float
+    anomaly_type: str  # "High Spike", "Standby Leak / Drift", "Abnormal Surge"
+    likely_cause: str
+    severity: str = "Medium"  # "High", "Medium", "Warning"
+
 
 class HourlyForecastPoint(BaseModel):
     timestamp: datetime
@@ -14,6 +25,12 @@ class HourlyForecastPoint(BaseModel):
     status: str = "Normal"
     spike_threshold_kwh: Optional[float] = None
     point_type: str = "predicted"  # "actual", "transition", "predicted"
+    is_anomaly: bool = False
+    expected_normal_kwh: Optional[float] = None
+    difference_kwh: Optional[float] = None
+    anomaly_cause: Optional[str] = None
+    anomaly_type: Optional[str] = None
+
 
 class ForecastResponse(BaseModel):
     horizon_name: str
@@ -25,6 +42,9 @@ class ForecastResponse(BaseModel):
     estimated_cost_inr: float
     potential_spike_count: int
     points: List[HourlyForecastPoint]
+    anomalies: List[SynchronizedAnomaly] = []
+    is_preliminary: bool = False
+    preliminary_notice: Optional[str] = None
     summary_message: str
     threshold_explanation: Optional[str] = (
         "The red dotted line is the Dynamic Hourly MAD (Median Absolute Deviation) Anomaly Threshold. "

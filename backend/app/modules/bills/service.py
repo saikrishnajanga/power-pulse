@@ -111,31 +111,66 @@ class BillService:
 
     def confirm_bill(self, bill_id: str, updated_data: Dict) -> ExtractedBillRecord:
         """
-        Allows user to review, edit and confirm extracted bill values (PRISM-M I8, I9).
+        Allows user to review, edit, correct, and confirm extracted bill values (PRISM-M I8, I9).
+        Recalculates state slabs, load charges, subsidies, and reconciliation.
         """
         bill = self._bills.get(bill_id)
         if not bill:
             raise KeyError(f"Bill with ID {bill_id} not found.")
 
-        # Re-calculate tariff based on confirmed units and days
+        # Update customizable fields
         units = float(updated_data.get("units_consumed_kwh", bill.units_consumed_kwh))
         days = int(updated_data.get("billing_days", bill.billing_days))
-        is_gjs = bool(updated_data.get("is_gruha_jyothi_applied", bill.is_gruha_jyothi_applied))
+        state = str(updated_data.get("state", bill.state))
+        location_type = str(updated_data.get("location_type", bill.location_type))
+        discom = str(updated_data.get("discom", bill.discom))
+        category = str(updated_data.get("consumer_category", bill.consumer_category))
+        load_kw = float(updated_data.get("sanctioned_load_kw", bill.sanctioned_load_kw))
+        is_sub = bool(updated_data.get("is_gruha_jyothi_applied", bill.is_gruha_jyothi_applied))
+        consumer_name = str(updated_data.get("consumer_name", bill.consumer_name))
+        consumer_num = str(updated_data.get("consumer_number", bill.consumer_number))
+        start_dt = updated_data.get("billing_start_date", bill.billing_start_date)
+        end_dt = updated_data.get("billing_end_date", bill.billing_end_date)
+        billed_amt = float(updated_data.get("net_payable_inr", bill.net_payable_inr))
 
         tariff = calculate_bill(
             TariffCalculationRequest(
                 units_consumed_kwh=units,
                 billing_days=days,
-                is_gruha_jyothi_eligible=is_gjs,
+                state=state,
+                location_type=location_type,
+                discom=discom,
+                consumer_category=category,
+                sanctioned_load_kw=load_kw,
+                is_gruha_jyothi_eligible=is_sub,
+                billed_amount_inr=billed_amt,
             )
         )
 
+        bill.consumer_name = consumer_name
+        bill.consumer_number = consumer_num
+        bill.state = state
+        bill.location_type = location_type
+        bill.discom = discom
+        bill.provider_name = tariff.provider
+        bill.consumer_category = category
+        bill.sanctioned_load_kw = load_kw
+        bill.billing_start_date = start_dt
+        bill.billing_end_date = end_dt
         bill.units_consumed_kwh = units
         bill.billing_days = days
         bill.energy_charges_inr = tariff.energy_charges_inr
+        bill.fixed_charges_inr = tariff.fixed_charges_inr
+        bill.customer_charges_inr = tariff.customer_charges_inr
+        bill.electricity_duty_inr = tariff.electricity_duty_inr
         bill.gross_amount_inr = tariff.gross_total_inr
-        bill.net_payable_inr = tariff.net_payable_inr
+        bill.net_payable_inr = billed_amt if billed_amt > 0 else tariff.net_payable_inr
+        bill.calculated_amount_inr = tariff.net_payable_inr
+        bill.difference_inr = round(bill.net_payable_inr - tariff.net_payable_inr, 2)
+        bill.difference_explanation = tariff.difference_explanation
         bill.is_gruha_jyothi_applied = tariff.is_gruha_jyothi_applied
+        bill.subsidy_name = tariff.subsidy_name
+        bill.slab_breakdown = tariff.slab_breakdown
         bill.review_status = "Confirmed"
 
         return bill

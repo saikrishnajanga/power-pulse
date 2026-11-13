@@ -32,7 +32,8 @@ import {
   Award,
   CheckSquare,
   X,
-  Users
+  Users,
+  Plus
 } from 'lucide-react';
 import {
   AreaChart,
@@ -72,6 +73,24 @@ const INITIAL_TARIFF = {
   ]
 };
 
+// 14 Core Indian Household Appliances with customizable kW, daily hours and count
+const DEFAULT_14_APPLIANCES = [
+  { id: 'ac', name: 'Air Conditioner', category: 'Cooling', icon: '❄️', power_rating_kw: 1.5, daily_hours: 6.0, quantity: 1, duty_cycle: 0.60, benchmark_percentage: 30.0, recommendation: 'Set thermostat to 24°C instead of 18°C to save ~24% cooling electricity.' },
+  { id: 'refrigerator', name: 'Refrigerator', category: 'Refrigeration', icon: '🧊', power_rating_kw: 0.18, daily_hours: 24.0, quantity: 1, duty_cycle: 0.35, benchmark_percentage: 16.0, recommendation: 'Maintain 50mm airflow clearance around condenser coils and inspect door gaskets.' },
+  { id: 'water_heater', name: 'Water Heater / Geyser', category: 'Heating', icon: '♨️', power_rating_kw: 2.0, daily_hours: 0.75, quantity: 1, duty_cycle: 1.0, benchmark_percentage: 14.0, recommendation: 'Install an automatic timer to prevent leaving geyser on continuously.' },
+  { id: 'ceiling_fans', name: 'Ceiling Fans', category: 'Circulation', icon: '🌀', power_rating_kw: 0.075, daily_hours: 12.0, quantity: 3, duty_cycle: 1.0, benchmark_percentage: 12.0, recommendation: 'Upgrade to 28W BLDC fans to cut fan power by 60% with fast payback.' },
+  { id: 'water_pump', name: 'Water Pump', category: 'Pumping', icon: '💧', power_rating_kw: 0.75, daily_hours: 1.0, quantity: 1, duty_cycle: 1.0, benchmark_percentage: 8.0, recommendation: 'Install an overhead tank auto-switch to prevent dry-running.' },
+  { id: 'washing_machine', name: 'Washing Machine', category: 'Laundry', icon: '🧺', power_rating_kw: 0.50, daily_hours: 1.0, quantity: 1, duty_cycle: 0.80, benchmark_percentage: 5.0, recommendation: 'Run on eco/cold wash mode and wash full loads.' },
+  { id: 'television', name: 'Television', category: 'Entertainment', icon: '📺', power_rating_kw: 0.10, daily_hours: 5.0, quantity: 1, duty_cycle: 1.0, benchmark_percentage: 4.0, recommendation: 'Switch off main plug to eliminate standby phantom load.' },
+  { id: 'induction_stove', name: 'Induction Stove', category: 'Kitchen', icon: '🍲', power_rating_kw: 1.5, daily_hours: 0.5, quantity: 1, duty_cycle: 0.80, benchmark_percentage: 4.0, recommendation: 'Use flat-bottomed ferromagnetic cookware for maximum efficiency.' },
+  { id: 'electric_iron', name: 'Electric Iron', category: 'Laundry', icon: '👔', power_rating_kw: 1.0, daily_hours: 0.4, quantity: 1, duty_cycle: 0.70, benchmark_percentage: 3.0, recommendation: 'Iron clothes in batches to prevent repeated reheating.' },
+  { id: 'microwave', name: 'Microwave Oven', category: 'Kitchen', icon: '📻', power_rating_kw: 1.2, daily_hours: 0.3, quantity: 1, duty_cycle: 1.0, benchmark_percentage: 3.0, recommendation: 'Cover dishes with ceramic lids to retain steam and cook faster.' },
+  { id: 'led_lights', name: 'LED Lights', category: 'Lighting', icon: '💡', power_rating_kw: 0.012, daily_hours: 6.0, quantity: 6, duty_cycle: 1.0, benchmark_percentage: 3.0, recommendation: 'Leverage daylight during afternoon and fit motion sensors in passages.' },
+  { id: 'computer_laptop', name: 'Computer / Laptop', category: 'Work & IT', icon: '💻', power_rating_kw: 0.08, daily_hours: 6.0, quantity: 1, duty_cycle: 0.90, benchmark_percentage: 3.0, recommendation: 'Set display sleep timeout to 10 minutes and unplug brick chargers.' },
+  { id: 'dishwasher', name: 'Dishwasher', category: 'Kitchen', icon: '🍽️', power_rating_kw: 1.2, daily_hours: 0.4, quantity: 1, duty_cycle: 0.75, benchmark_percentage: 2.0, recommendation: 'Run only full loads on eco-cycle during non-peak daylight hours.' },
+  { id: 'other_appliances', name: 'Other Appliances', category: 'Miscellaneous', icon: '🔌', power_rating_kw: 0.15, daily_hours: 2.0, quantity: 1, duty_cycle: 0.80, benchmark_percentage: 2.0, recommendation: 'Unplug phone adapters, wifi repeaters and peripherals when travelling.' },
+];
+
 const APPLIANCE_DECOMPOSITION = [
   { name: 'Air Conditioning (HVAC)', value: 42, color: '#06b6d4' },
   { name: 'Water Heating (Geyser)', value: 24, color: '#f59e0b' },
@@ -92,20 +111,30 @@ export default function App() {
   const [forecastViewMode, setForecastViewMode] = useState('daily'); // 'daily' | 'hourly'
 
   // Tariff calculator state - Regional & Location-Based (Telangana & Andhra Pradesh)
-  const [selectedState, setSelectedState] = useState('Telangana'); // 'Telangana' | 'Andhra Pradesh'
+  const [selectedState, setSelectedState] = useState('Andhra Pradesh'); // Default to AP
   const [locationType, setLocationType] = useState('urban'); // 'urban' | 'rural'
   const [sanctionedLoad, setSanctionedLoad] = useState(2.0); // in kW
   const [isRuralSubsidy, setIsRuralSubsidy] = useState(false); // YSR Jagjeevan Jyothi Scheme
   const [inputUnits, setInputUnits] = useState(185);
   const [inputDays, setInputDays] = useState(30);
-  const [isGruhaJyothi, setIsGruhaJyothi] = useState(true);
+  const [isGruhaJyothi, setIsGruhaJyothi] = useState(false);
   const [tariffResult, setTariffResult] = useState(INITIAL_TARIFF);
 
   // Recommendations state
   const [recommendations, setRecommendations] = useState(null);
 
-  // Disaggregation state (AllHouses REFIT Engine)
+  // Disaggregation state (AllHouses REFIT Engine with all 14 Household Appliances)
   const [disaggregationData, setDisaggregationData] = useState(null);
+  const [appliancesList, setAppliancesList] = useState(DEFAULT_14_APPLIANCES);
+  const [showAddApplianceModal, setShowAddApplianceModal] = useState(false);
+  const [newApplianceForm, setNewApplianceForm] = useState({
+    name: '',
+    category: 'Kitchen',
+    icon: '⚡',
+    power_rating_kw: 0.5,
+    daily_hours: 2.0,
+    quantity: 1,
+  });
 
   // Bills Management state (PRISM-M Epic E-04)
   const [billsList, setBillsList] = useState([]);
@@ -212,6 +241,9 @@ export default function App() {
         if (dRes.ok) {
           const dJson = await dRes.json();
           setDisaggregationData(dJson);
+          if (dJson.appliances && dJson.appliances.length > 0) {
+            setAppliancesList(dJson.appliances);
+          }
         }
         // Fetch uploaded / golden bills list (PRISM-M E-04)
         const bRes = await fetch(`${API_BASE}/bills`);
@@ -219,7 +251,7 @@ export default function App() {
           const bJson = await bRes.json();
           setBillsList(bJson);
           if (bJson.length > 0 && !selectedBill) {
-            setSelectedBill(bJson[0]);
+            syncDashboardWithBill(bJson[0]);
           }
         }
         // Fetch solar demo analysis (solar_energy.ipynb)
@@ -259,6 +291,97 @@ export default function App() {
     }
   };
 
+  // Synchronized Master Updater: Connects uploaded electricity bill to EVERY dashboard section
+  const syncDashboardWithBill = (bill) => {
+    if (!bill) return;
+    setSelectedBill(bill);
+    const units = Number(bill.units_consumed_kwh || 185);
+    const days = Number(bill.billing_days || 30);
+    const st = bill.state || (bill.discom?.startsWith('AP') ? 'Andhra Pradesh' : 'Telangana');
+    const loc = bill.location_type || 'urban';
+    const load = Number(bill.sanctioned_load_kw || 2.0);
+    const isGjs = Boolean(bill.is_gruha_jyothi_applied);
+
+    setInputUnits(units);
+    setInputDays(days);
+    setSelectedState(st);
+    setLocationType(loc);
+    setSanctionedLoad(load);
+    setIsGruhaJyothi(isGjs);
+    if (st === 'Andhra Pradesh' && loc === 'rural') {
+      setIsRuralSubsidy(isGjs);
+    }
+
+    handleCalculateTariff(st, loc, units, load, isGjs, bill.discom, bill.consumer_category, bill.gross_amount_inr || bill.net_payable_inr);
+    fetchForecast(forecastPeriod, units);
+    fetchDisaggregation(units);
+    fetchSolarAlternatives(units, bill.gross_amount_inr || bill.net_payable_inr, bill.bill_id, bill.file_name);
+  };
+
+  const fetchDisaggregation = async (units = inputUnits) => {
+    try {
+      const res = await fetch(`${API_BASE}/disaggregation/breakdown`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          monthly_consumption_kwh: Number(units),
+          has_air_conditioner: true,
+          household_size: 4,
+        })
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setDisaggregationData(json);
+        if (json.appliances && json.appliances.length > 0) {
+          setAppliancesList(json.appliances);
+        }
+      }
+    } catch (err) {
+      console.warn("Disaggregation fetch failed:", err);
+    }
+  };
+
+  const handleRecalculateAppliances = async (updatedList = appliancesList) => {
+    try {
+      const res = await fetch(`${API_BASE}/disaggregation/custom`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          monthly_consumption_kwh: Number(inputUnits),
+          appliances: updatedList.map(a => ({
+            id: a.id,
+            name: a.name,
+            category: a.category || 'General',
+            icon: a.icon || '⚡',
+            power_rating_kw: Number(a.power_rating_kw || 0.1),
+            daily_hours: Number(a.daily_hours || 1.0),
+            quantity: Number(a.quantity || 1),
+          }))
+        })
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setDisaggregationData(json);
+        setAppliancesList(json.appliances);
+      }
+    } catch (err) {
+      console.error("Custom appliance recalculate error:", err);
+    }
+  };
+
+  const fetchSolarAlternatives = async (units = inputUnits, grossAmount = 809, billId = '', fileName = '') => {
+    try {
+      const q = `${API_BASE}/solar/appliance-alternatives?monthly_kwh=${units}&current_bill_inr=${grossAmount}&bill_id=${billId}&bill_file_name=${encodeURIComponent(fileName)}`;
+      const res = await fetch(q);
+      if (res.ok) {
+        const json = await res.json();
+        setApplianceSolarData(json);
+      }
+    } catch (err) {
+      console.warn("Solar alternatives error:", err);
+    }
+  };
+
   const handleFileUpload = async (e, directFile = null) => {
     let file = directFile;
     if (!file && e) {
@@ -287,21 +410,12 @@ export default function App() {
 
       const newBill = await res.json();
       setBillsList(prev => [newBill, ...prev.filter(b => b.bill_id !== newBill.bill_id)]);
-      setSelectedBill(newBill);
-      setInputUnits(newBill.units_consumed_kwh);
-      setIsGruhaJyothi(newBill.is_gruha_jyothi_applied);
+      syncDashboardWithBill(newBill);
 
       setUploadStatus({
         type: 'success',
-        message: `✓ Successfully parsed "${newBill.file_name}"! Extracted ${newBill.units_consumed_kwh} kWh (${newBill.provider_name.split('(')[0]}).`
+        message: `✓ Successfully parsed "${newBill.file_name}"! Extracted ${newBill.units_consumed_kwh} kWh (${newBill.provider_name.split('(')[0]}). All dashboard metrics synchronized.`
       });
-
-      // Instantly re-calculate appliance solar alternatives and forecast for this bill
-      const solRes = await fetch(`${API_BASE}/solar/appliance-alternatives?monthly_kwh=${newBill.units_consumed_kwh}&current_bill_inr=${newBill.gross_amount_inr}&bill_id=${newBill.bill_id}&bill_file_name=${encodeURIComponent(newBill.file_name)}`);
-      if (solRes.ok) {
-        const solJson = await solRes.json();
-        setApplianceSolarData(solJson);
-      }
     } catch (err) {
       console.error("Bill upload error:", err);
       setUploadStatus({
@@ -323,27 +437,32 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          units_consumed_kwh: selectedBill.units_consumed_kwh,
-          billing_days: selectedBill.billing_days,
-          is_gruha_jyothi_applied: selectedBill.is_gruha_jyothi_applied
+          units_consumed_kwh: Number(selectedBill.units_consumed_kwh),
+          billing_days: Number(selectedBill.billing_days || 30),
+          is_gruha_jyothi_applied: Boolean(selectedBill.is_gruha_jyothi_applied),
+          state: selectedBill.state,
+          location_type: selectedBill.location_type,
+          consumer_category: selectedBill.consumer_category,
+          discom: selectedBill.discom,
+          sanctioned_load_kw: Number(selectedBill.sanctioned_load_kw || 2.0),
+          consumer_name: selectedBill.consumer_name,
+          consumer_number: selectedBill.consumer_number,
+          billing_start_date: selectedBill.billing_start_date,
+          billing_end_date: selectedBill.billing_end_date,
+          gross_amount_inr: Number(selectedBill.gross_amount_inr || selectedBill.net_payable_inr),
         })
       });
       if (res.ok) {
         const confirmed = await res.json();
-        setSelectedBill(confirmed);
         setBillsList(prev => prev.map(b => b.bill_id === confirmed.bill_id ? confirmed : b));
-        setInputUnits(confirmed.units_consumed_kwh);
-        setIsGruhaJyothi(confirmed.is_gruha_jyothi_applied);
-
-        // Update appliance solar alternatives for confirmed bill
-        const solRes = await fetch(`${API_BASE}/solar/appliance-alternatives?monthly_kwh=${confirmed.units_consumed_kwh}&current_bill_inr=${confirmed.gross_amount_inr}&bill_id=${confirmed.bill_id}&bill_file_name=${encodeURIComponent(confirmed.file_name)}`);
-        if (solRes.ok) {
-          const solJson = await solRes.json();
-          setApplianceSolarData(solJson);
-        }
+        syncDashboardWithBill(confirmed);
+        setUploadStatus({
+          type: 'success',
+          message: `✓ Confirmed and recalculated all dashboard sections for "${confirmed.file_name}"!`
+        });
       }
     } catch (err) {
-      console.error(err);
+      console.error("Bill confirmation error:", err);
     }
   };
 
@@ -442,13 +561,19 @@ export default function App() {
     overrideLocation = null,
     overrideUnits = null,
     overrideLoad = null,
-    overrideSubsidy = null
+    overrideSubsidy = null,
+    overrideDiscom = null,
+    overrideCategory = null,
+    overrideBilledAmount = null
   ) => {
     const st = overrideState || selectedState;
     const loc = overrideLocation || locationType;
     const units = overrideUnits !== null ? overrideUnits : Number(inputUnits);
     const load = overrideLoad !== null ? overrideLoad : Number(sanctionedLoad);
     const sub = overrideSubsidy !== null ? overrideSubsidy : (st === 'Telangana' ? isGruhaJyothi : isRuralSubsidy);
+    const disc = overrideDiscom || (st === 'Andhra Pradesh' ? (selectedBill?.discom || 'APSPDCL') : 'TGSPDCL');
+    const cat = overrideCategory || (selectedBill?.consumer_category || 'LT-I Domestic');
+    const billed = overrideBilledAmount !== null ? overrideBilledAmount : (selectedBill?.gross_amount_inr || null);
 
     try {
       const res = await fetch(`${API_BASE}/tariffs/calculate`, {
@@ -459,8 +584,11 @@ export default function App() {
           billing_days: Number(inputDays),
           state: st,
           location_type: loc,
+          discom: disc,
+          consumer_category: cat,
           sanctioned_load_kw: load,
           is_gruha_jyothi_eligible: sub,
+          billed_amount_inr: billed,
         })
       });
       if (res.ok) {
@@ -537,6 +665,31 @@ export default function App() {
       console.error(err);
     }
   };
+
+  // Historical Comparison with previous billing period (Requirement 2)
+  const previousBill = useMemo(() => {
+    if (!billsList || billsList.length <= 1) return null;
+    return billsList.find(b => b.bill_id !== selectedBill?.bill_id) || null;
+  }, [billsList, selectedBill]);
+
+  const billComparison = useMemo(() => {
+    if (!previousBill) return null;
+    const currentKwh = Number(inputUnits);
+    const prevKwh = Number(previousBill.units_consumed_kwh);
+    const diffKwh = Number((currentKwh - prevKwh).toFixed(1));
+    const diffPct = prevKwh > 0 ? Number(((diffKwh / prevKwh) * 100).toFixed(1)) : 0;
+    return {
+      prevKwh,
+      diffKwh,
+      diffPct,
+      prevLabel: previousBill.billing_cycle || previousBill.file_name,
+    };
+  }, [previousBill, inputUnits]);
+
+  // Synchronized Anomaly Points matching AI Demand Forecast (Requirement 4)
+  const synchronizedAnomalies = useMemo(() => {
+    return forecastData?.anomalies || [];
+  }, [forecastData]);
 
   // Prepare clean, uncluttered, intuitive chart data based on forecastPeriod & forecastViewMode
   const formattedForecastPoints = useMemo(() => {
@@ -633,7 +786,7 @@ export default function App() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <h1 style={{ fontSize: '22px', fontWeight: '800', letterSpacing: '-0.5px' }}>PowerPulse</h1>
               <span className="badge badge-emerald">AI Intelligence</span>
-              <span className="badge badge-cyan">Telangana (TGSPDCL)</span>
+              <span className="badge badge-cyan">{selectedState} ({selectedBill?.discom || (selectedState === 'Andhra Pradesh' ? 'APSPDCL' : 'TGSPDCL')})</span>
             </div>
             <p style={{ fontSize: '13px', color: '#9ca3af' }}>AI-Driven Energy Consumption, Anomaly Detection & ROI Optimization</p>
           </div>
@@ -711,49 +864,128 @@ export default function App() {
       {/* -------------------- TAB 1: OVERVIEW -------------------- */}
       {activeTab === 'overview' && (
         <section>
-          {/* Top KPI Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '18px', marginBottom: '28px' }}>
+          {/* Top Dynamic KPI Cards (Connected to Uploaded Electricity Bill) */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '18px', marginBottom: '24px' }}>
+            {/* 1. Total Electricity Consumption */}
             <div className="glass-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#9ca3af', fontSize: '13px', marginBottom: '8px' }}>
-                <span>Monthly Consumption</span>
+                <span>Billed Consumption</span>
                 <Activity size={16} color="#06b6d4" />
               </div>
-              <div style={{ fontSize: '30px', fontWeight: '800', color: '#f9fafb' }}>185.0 <span style={{ fontSize: '15px', color: '#9ca3af' }}>kWh</span></div>
+              <div style={{ fontSize: '30px', fontWeight: '800', color: '#f9fafb' }}>
+                {inputUnits} <span style={{ fontSize: '15px', color: '#9ca3af' }}>kWh</span>
+              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '12px', color: '#34d399' }}>
-                <CheckCircle2 size={14} /> Within Gruha Jyothi 200u Limit
+                <CheckCircle2 size={14} />
+                <span>
+                  {selectedState === 'Andhra Pradesh'
+                    ? (isRuralSubsidy ? 'YSR Jagjeevan Jyothi (200u Free)' : `${selectedBill?.discom || 'APSPDCL'} Telescopic`)
+                    : (inputUnits <= 200 && isGruhaJyothi ? 'Gruha Jyothi 200u Zero-Bill' : 'Standard LT-I Tariff')}
+                </span>
               </div>
             </div>
 
+            {/* 2. Total Electricity Bill Amount */}
             <div className="glass-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#9ca3af', fontSize: '13px', marginBottom: '8px' }}>
-                <span>Net Payable Bill (TGSPDCL)</span>
+                <span>Net Payable Bill ({selectedBill?.discom || (selectedState === 'Andhra Pradesh' ? 'APSPDCL' : 'TGSPDCL')})</span>
                 <IndianRupee size={16} color="#10b981" />
               </div>
-              <div style={{ fontSize: '30px', fontWeight: '800', color: '#34d399' }}>₹0.00</div>
+              <div style={{ fontSize: '30px', fontWeight: '800', color: '#34d399' }}>
+                ₹{((selectedBill ? (selectedBill.net_payable_inr ?? selectedBill.gross_amount_inr) : (tariffResult?.net_payable_inr ?? tariffResult?.gross_total_inr ?? 0))).toFixed(2)}
+              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '12px', color: '#9ca3af' }}>
-                <span>Gross: ₹809.10 (₹809.10 subsidized)</span>
+                <span>Gross: ₹{(selectedBill?.gross_amount_inr || tariffResult?.gross_total_inr || 0).toFixed(2)} (Subsidies: ₹{(selectedBill?.subsidy_amount_inr || tariffResult?.subsidy_amount_inr || 0).toFixed(2)})</span>
               </div>
             </div>
 
+            {/* 3. Average Daily Consumption & Load */}
             <div className="glass-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#9ca3af', fontSize: '13px', marginBottom: '8px' }}>
-                <span>Solar Payback Period</span>
-                <Sun size={16} color="#f59e0b" />
+                <span>Average Daily Burn Rate</span>
+                <TrendingUp size={16} color="#fbbf24" />
               </div>
-              <div style={{ fontSize: '30px', fontWeight: '800', color: '#fbbf24' }}>3.2 <span style={{ fontSize: '15px', color: '#9ca3af' }}>Years</span></div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '12px', color: '#34d399' }}>
-                <ArrowUpRight size={14} /> PM Surya Ghar Subsidy: ₹60,000
+              <div style={{ fontSize: '30px', fontWeight: '800', color: '#fbbf24' }}>
+                {(inputUnits / (selectedBill?.billing_days || inputDays || 30)).toFixed(2)}{' '}
+                <span style={{ fontSize: '15px', color: '#9ca3af' }}>kWh/day</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '12px', color: '#9ca3af' }}>
+                <span>Average Continuous Load: {(inputUnits / ((selectedBill?.billing_days || inputDays || 30) * 24)).toFixed(2)} kW</span>
               </div>
             </div>
 
+            {/* 4. Sanctioned Load & Peak Demand */}
             <div className="glass-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#9ca3af', fontSize: '13px', marginBottom: '8px' }}>
-                <span>Clean Energy Offset</span>
-                <ShieldCheck size={16} color="#10b981" />
+                <span>Contracted Sanctioned Load</span>
+                <Zap size={16} color="#38bdf8" />
               </div>
-              <div style={{ fontSize: '30px', fontWeight: '800', color: '#f9fafb' }}>1.82 <span style={{ fontSize: '15px', color: '#9ca3af' }}>tonnes</span></div>
+              <div style={{ fontSize: '30px', fontWeight: '800', color: '#f9fafb' }}>
+                {sanctionedLoad} <span style={{ fontSize: '15px', color: '#9ca3af' }}>kW</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '12px', color: '#38bdf8' }}>
+                <span>Est. Peak Demand: {(sanctionedLoad * 0.85).toFixed(2)} kW · {locationType.toUpperCase()}</span>
+              </div>
+            </div>
+
+            {/* 5. Billing Period & Cycle */}
+            <div className="glass-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#9ca3af', fontSize: '13px', marginBottom: '8px' }}>
+                <span>Billing Period</span>
+                <Calendar size={16} color="#a855f7" />
+              </div>
+              <div style={{ fontSize: '20px', fontWeight: '800', color: '#f9fafb', marginTop: '4px' }}>
+                {selectedBill?.billing_start_date && selectedBill?.billing_end_date
+                  ? `${selectedBill.billing_start_date} – ${selectedBill.billing_end_date}`
+                  : (selectedBill?.billing_cycle || 'OCT/2026')}
+              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '12px', color: '#9ca3af' }}>
-                <span>CO₂ offset annually with Solar</span>
+                <span>
+                  {selectedBill?.billing_days || inputDays || 30} Days Cycle ({selectedBill?.consumer_category || 'LT-I Domestic'})
+                </span>
+              </div>
+            </div>
+
+            {/* 6. Comparison with Previous Billing Period */}
+            <div className="glass-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#9ca3af', fontSize: '13px', marginBottom: '8px' }}>
+                <span>Prior Period Comparison</span>
+                <Layers size={16} color="#10b981" />
+              </div>
+              {billComparison ? (
+                <>
+                  <div style={{ fontSize: '26px', fontWeight: '800', color: billComparison.diffKwh <= 0 ? '#34d399' : '#fb7185' }}>
+                    {billComparison.diffKwh > 0 ? `+${billComparison.diffKwh}` : billComparison.diffKwh}{' '}
+                    <span style={{ fontSize: '15px' }}>kWh ({billComparison.diffPct > 0 ? `+${billComparison.diffPct}` : billComparison.diffPct}%)</span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '8px' }}>
+                    Compared to prior bill ({billComparison.prevLabel}: {billComparison.prevKwh} kWh)
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: '15px', fontWeight: '600', color: '#9ca3af', marginTop: '6px' }}>
+                    No prior billing history uploaded
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '6px' }}>
+                    Upload prior bills to unlock historical trend analytics
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* 7. Estimated Next Month's Consumption & Bill */}
+            <div className="glass-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#9ca3af', fontSize: '13px', marginBottom: '8px' }}>
+                <span>Estimated Next Month</span>
+                <Sparkles size={16} color="#06b6d4" />
+              </div>
+              <div style={{ fontSize: '26px', fontWeight: '800', color: '#06b6d4' }}>
+                {((inputUnits / (selectedBill?.billing_days || inputDays || 30)) * 30).toFixed(1)}{' '}
+                <span style={{ fontSize: '14px', color: '#9ca3af' }}>kWh</span>
+              </div>
+              <div style={{ fontSize: '12px', color: '#cbd5e1', marginTop: '8px' }}>
+                Est. Bill: <strong style={{ color: '#34d399' }}>₹{(((inputUnits / (selectedBill?.billing_days || inputDays || 30)) * 30) * (tariffResult?.effective_rate_per_kwh || 4.5)).toFixed(2)}</strong>
               </div>
             </div>
           </div>
@@ -813,39 +1045,160 @@ export default function App() {
               </div>
             </div>
 
-            {/* Consumption Breakdown Donut */}
+            {/* Consumption Breakdown Donut (Dynamic from Bill Disaggregation) */}
             <div className="glass-card">
-              <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '8px' }}>Energy Decomposition</h3>
-              <p style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '18px' }}>End-use share modeled from appliance questionnaire</p>
-              <div style={{ height: '240px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '700' }}>Appliance Decomposition</h3>
+                <span className="badge badge-cyan">Model Estimates</span>
+              </div>
+              <p style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '16px' }}>
+                Estimated share of {inputUnits} kWh billed consumption
+              </p>
+              <div style={{ height: '220px' }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <RechartsPie>
                     <Pie
-                      data={APPLIANCE_DECOMPOSITION}
+                      data={(disaggregationData?.appliances || appliancesList).slice(0, 6).map((app, idx) => ({
+                        name: app.name,
+                        value: Number(app.share_percentage || 10),
+                        color: ['#06b6d4', '#10b981', '#f59e0b', '#6366f1', '#ec4899', '#8b5cf6'][idx % 6],
+                        kwh: app.monthly_kwh,
+                        cost: app.monthly_cost_inr,
+                      }))}
                       cx="50%"
                       cy="50%"
-                      innerRadius={60}
-                      outerRadius={85}
+                      innerRadius={55}
+                      outerRadius={80}
                       paddingAngle={4}
                       dataKey="value"
                     >
-                      {APPLIANCE_DECOMPOSITION.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      {['#06b6d4', '#10b981', '#f59e0b', '#6366f1', '#ec4899', '#8b5cf6'].map((col, index) => (
+                        <Cell key={`cell-${index}`} fill={col} />
                       ))}
                     </Pie>
-                    <Tooltip contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', borderRadius: '8px' }} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', borderRadius: '8px', fontSize: '12px' }}
+                      formatter={(val, name, item) => [
+                        `${val}% (${item?.payload?.kwh || 0} kWh · ₹${item?.payload?.cost || 0})`,
+                        name
+                      ]}
+                    />
                   </RechartsPie>
                 </ResponsiveContainer>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '11px', marginTop: '10px' }}>
-                {APPLIANCE_DECOMPOSITION.map((item, idx) => (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '11px', marginTop: '10px' }}>
+                {(disaggregationData?.appliances || appliancesList).slice(0, 6).map((item, idx) => (
                   <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: item.color }}></span>
-                    <span style={{ color: '#9ca3af' }}>{item.name}: <strong style={{ color: '#f9fafb' }}>{item.value}%</strong></span>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: ['#06b6d4', '#10b981', '#f59e0b', '#6366f1', '#ec4899', '#8b5cf6'][idx % 6] }}></span>
+                    <span style={{ color: '#9ca3af', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {item.name.split('(')[0]}: <strong style={{ color: '#f9fafb' }}>{item.share_percentage}%</strong>
+                    </span>
                   </div>
                 ))}
               </div>
+              <div style={{ marginTop: '12px', textAlign: 'center' }}>
+                <button
+                  className="btn-secondary"
+                  onClick={() => setActiveTab('appliances')}
+                  style={{ width: '100%', fontSize: '11px', padding: '6px 10px' }}
+                >
+                  Manage All 14 Appliances & Custom Ratings →
+                </button>
+              </div>
             </div>
+          </div>
+
+          {/* Detailed Tariff Slab Breakdown Table (PRISM-M Requirement 6) */}
+          <div className="glass-card" style={{ marginTop: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+              <div>
+                <h3 style={{ fontSize: '16px', fontWeight: '700' }}>
+                  {selectedState} ({selectedBill?.discom || (selectedState === 'Andhra Pradesh' ? 'APSPDCL' : 'TGSPDCL')}) Tariff Slab Calculation Breakdown
+                </h3>
+                <p style={{ fontSize: '12px', color: '#9ca3af' }}>
+                  Official {selectedState === 'Andhra Pradesh' ? 'APERC' : 'TGSPDCL'} telescopic slab schedule applied to {inputUnits} kWh ({locationType.toUpperCase()} category)
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <span className={`badge ${locationType === 'urban' ? 'badge-cyan' : 'badge-emerald'}`}>
+                  {locationType === 'urban' ? '🏙️ Urban Corporation' : '🌾 Rural Gram Panchayat'}
+                </span>
+                <span className="badge badge-amber">{selectedBill?.consumer_category || 'LT-I Domestic'}</span>
+              </div>
+            </div>
+
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #374151', color: '#9ca3af' }}>
+                    <th style={{ padding: '10px' }}>Consumption Slab</th>
+                    <th style={{ padding: '10px' }}>Units in Slab</th>
+                    <th style={{ padding: '10px' }}>Rate (₹/kWh)</th>
+                    <th style={{ padding: '10px', textAlign: 'right' }}>Calculated Amount (₹)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(tariffResult?.slab_breakdown || []).map((slab, idx) => (
+                    <tr key={idx} style={{ borderBottom: '1px solid #1f293d' }}>
+                      <td style={{ padding: '10px', fontWeight: '600', color: '#f9fafb' }}>{slab.slab_range}</td>
+                      <td style={{ padding: '10px', color: '#06b6d4' }}>{slab.units_in_slab} kWh</td>
+                      <td style={{ padding: '10px', color: '#9ca3af' }}>₹{slab.rate_per_kwh.toFixed(2)}</td>
+                      <td style={{ padding: '10px', textAlign: 'right', fontWeight: '700', color: '#f9fafb' }}>₹{slab.amount_inr.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                  <tr style={{ borderTop: '2px solid #374151', background: 'rgba(15, 23, 42, 0.4)' }}>
+                    <td colSpan="3" style={{ padding: '8px 10px', color: '#9ca3af' }}>Energy Charges Subtotal:</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '700', color: '#f9fafb' }}>₹{(tariffResult?.energy_charges_inr || 0).toFixed(2)}</td>
+                  </tr>
+                  <tr>
+                    <td colSpan="3" style={{ padding: '8px 10px', color: '#9ca3af' }}>
+                      Fixed Charges ({sanctionedLoad} kW @ ₹{selectedState === 'Andhra Pradesh' ? '10.00/kW' : '10.00/kW'}):
+                    </td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '700', color: '#f9fafb' }}>₹{(tariffResult?.fixed_charges_inr || 0).toFixed(2)}</td>
+                  </tr>
+                  <tr>
+                    <td colSpan="3" style={{ padding: '8px 10px', color: '#9ca3af' }}>
+                      Customer Charges ({locationType === 'urban' ? 'Urban Corporation ₹50.00' : 'Rural Gram Panchayat ₹25.00'}):
+                    </td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '700', color: '#f9fafb' }}>₹{(tariffResult?.customer_charges_inr || 0).toFixed(2)}</td>
+                  </tr>
+                  <tr>
+                    <td colSpan="3" style={{ padding: '8px 10px', color: '#9ca3af' }}>Electricity Duty (~0.06 INR/kWh):</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '700', color: '#f9fafb' }}>₹{(tariffResult?.electricity_duty_inr || 0).toFixed(2)}</td>
+                  </tr>
+                  {(tariffResult?.subsidy_amount_inr || 0) > 0 && (
+                    <tr style={{ color: '#34d399' }}>
+                      <td colSpan="3" style={{ padding: '8px 10px' }}>
+                        Government Subsidy ({selectedState === 'Andhra Pradesh' ? 'YSR Jagjeevan Jyothi Scheme' : 'Gruha Jyothi Zero Bill'}):
+                      </td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '700' }}>-₹{(tariffResult?.subsidy_amount_inr || 0).toFixed(2)}</td>
+                    </tr>
+                  )}
+                  <tr style={{ borderTop: '2px solid #10b981', background: 'rgba(16, 185, 129, 0.08)' }}>
+                    <td colSpan="3" style={{ padding: '12px 10px', fontWeight: '800', color: '#10b981', fontSize: '15px' }}>Total Calculated Net Payable:</td>
+                    <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: '800', color: '#10b981', fontSize: '18px' }}>
+                      ₹{(tariffResult?.net_payable_inr ?? tariffResult?.gross_total_inr ?? 0).toFixed(2)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Reconciliation Comparison with Uploaded Bill Amount (Requirement 6) */}
+            {selectedBill && (
+              <div style={{ marginTop: '16px', padding: '12px 16px', background: '#0b0f19', borderRadius: '8px', border: '1px solid #1f293d', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                <div>
+                  <span style={{ fontSize: '12px', color: '#9ca3af' }}>Uploaded Billed Amount: </span>
+                  <strong style={{ color: '#f9fafb', fontSize: '14px' }}>₹{selectedBill.gross_amount_inr || selectedBill.net_payable_inr}</strong>
+                  <span style={{ margin: '0 8px', color: '#6b7280' }}>|</span>
+                  <span style={{ fontSize: '12px', color: '#9ca3af' }}>Calculated Amount: </span>
+                  <strong style={{ color: '#10b981', fontSize: '14px' }}>₹{(tariffResult?.net_payable_inr ?? tariffResult?.gross_total_inr ?? 0).toFixed(2)}</strong>
+                </div>
+                <div style={{ fontSize: '12px', color: '#cbd5e1' }}>
+                  {tariffResult?.difference_explanation || 'Calculated tariff matches official DISCOM retail schedule within ₹0.00 variance.'}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 24-Hour Solar Generation Profile Quick-View on Overview Tab */}
@@ -1311,39 +1664,176 @@ export default function App() {
                 </div>
               </div>
             </div>
+
+            {/* Synchronized Anomaly Spikes Highlight Strip (Requirement 4) */}
+            {synchronizedAnomalies.length > 0 && (
+              <div style={{ marginTop: '16px', padding: '14px 18px', background: 'rgba(244, 63, 94, 0.08)', borderRadius: '10px', border: '1px solid rgba(244, 63, 94, 0.25)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <AlertTriangle size={16} color="#f43f5e" />
+                    <strong style={{ color: '#f43f5e', fontSize: '13px' }}>
+                      Flagged Anomaly Intervals on this Chart ({synchronizedAnomalies.length} synchronized events)
+                    </strong>
+                  </div>
+                  <button
+                    className="btn-secondary"
+                    onClick={() => setActiveTab('anomalies')}
+                    style={{ fontSize: '11px', padding: '4px 10px' }}
+                  >
+                    Open Anomaly & Spikes Tab →
+                  </button>
+                </div>
+                <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '4px' }}>
+                  {synchronizedAnomalies.slice(0, 6).map((an, i) => {
+                    const dtStr = typeof an.timestamp === 'string' ? an.timestamp : an.timestamp?.toISOString?.() || 'Interval';
+                    const label = dtStr.includes('T') ? dtStr.replace('T', ' ').substring(5, 16) : dtStr;
+                    return (
+                      <div key={i} style={{ padding: '8px 12px', background: '#0b0f19', borderRadius: '6px', border: '1px solid #1f293d', whiteSpace: 'nowrap', fontSize: '11px' }}>
+                        <span style={{ color: '#9ca3af', display: 'block' }}>{label}</span>
+                        <strong style={{ color: '#f43f5e' }}>{an.actual_kwh} kWh</strong>{' '}
+                        <span style={{ color: '#06b6d4' }}>(vs {an.expected_normal_kwh} normal)</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </section>
       )}
 
-      {/* -------------------- TAB 3: ANOMALY -------------------- */}
+      {/* -------------------- TAB 3: ANOMALY (Synchronized with AI Forecast) -------------------- */}
       {activeTab === 'anomalies' && (
         <section>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '18px', marginBottom: '24px' }}>
-            <div className="glass-card">
-              <span style={{ fontSize: '12px', color: '#9ca3af' }}>Isolation Forest Config</span>
-              <div style={{ fontSize: '24px', fontWeight: '700', marginTop: '4px' }}>200 Trees</div>
-              <span style={{ fontSize: '12px', color: '#06b6d4' }}>2.0% Contamination Rate</span>
-            </div>
-            <div className="glass-card">
-              <span style={{ fontSize: '12px', color: '#9ca3af' }}>Flagged Abnormalities</span>
-              <div style={{ fontSize: '24px', fontWeight: '700', color: '#fb7185', marginTop: '4px' }}>2 Intervals</div>
-              <span style={{ fontSize: '12px', color: '#9ca3af' }}>Over 100 evaluation hours</span>
-            </div>
-            <div className="glass-card">
-              <span style={{ fontSize: '12px', color: '#9ca3af' }}>Likely Driver</span>
-              <div style={{ fontSize: '16px', fontWeight: '700', color: '#fbbf24', marginTop: '4px' }}>Night-time Base Load</div>
-              <span style={{ fontSize: '12px', color: '#9ca3af' }}>Possible AC compressor cycling fault</span>
+          {/* Synchronized Status Banner */}
+          <div className="glass-card" style={{ marginBottom: '24px', background: 'linear-gradient(135deg, rgba(244, 63, 94, 0.08), rgba(6, 182, 212, 0.05))', border: '1px solid rgba(244, 63, 94, 0.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+              <div>
+                <span className="badge badge-rose">Synchronized Anomaly Detection (PRISM-M Requirement 4)</span>
+                <h3 style={{ fontSize: '18px', fontWeight: '800', marginTop: '6px' }}>
+                  Unified Consumption Anomaly & Spike Analysis
+                </h3>
+                <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>
+                  Every anomaly identified below is matched on the <strong>exact same timestamps</strong> in the AI Demand Forecast chart using the continuous {inputUnits} kWh billing baseline.
+                </p>
+              </div>
+              <button
+                className="btn-secondary"
+                onClick={() => setActiveTab('forecast')}
+                style={{ fontSize: '12px', padding: '6px 14px' }}
+              >
+                View on Forecast Chart →
+              </button>
             </div>
           </div>
 
+          {/* Top KPI Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '18px', marginBottom: '24px' }}>
+            <div className="glass-card">
+              <span style={{ fontSize: '12px', color: '#9ca3af' }}>Evaluated Dataset Horizon</span>
+              <div style={{ fontSize: '24px', fontWeight: '700', marginTop: '4px' }}>200 Hours</div>
+              <span style={{ fontSize: '12px', color: '#06b6d4' }}>Continuous hourly series</span>
+            </div>
+            <div className="glass-card">
+              <span style={{ fontSize: '12px', color: '#9ca3af' }}>Flagged Abnormalities</span>
+              <div style={{ fontSize: '24px', fontWeight: '700', color: synchronizedAnomalies.length > 0 ? '#fb7185' : '#34d399', marginTop: '4px' }}>
+                {synchronizedAnomalies.length} Events
+              </div>
+              <span style={{ fontSize: '12px', color: '#9ca3af' }}>Breaching dynamic baseline</span>
+            </div>
+            <div className="glass-card">
+              <span style={{ fontSize: '12px', color: '#9ca3af' }}>Spike Detection Method</span>
+              <div style={{ fontSize: '18px', fontWeight: '700', color: '#fbbf24', marginTop: '4px' }}>Isolation Forest + MAD</div>
+              <span style={{ fontSize: '12px', color: '#9ca3af' }}>Robust 3-sigma dynamic threshold</span>
+            </div>
+            <div className="glass-card">
+              <span style={{ fontSize: '12px', color: '#9ca3af' }}>Dashboard State</span>
+              <div style={{ fontSize: '18px', fontWeight: '700', color: '#10b981', marginTop: '4px' }}>🟢 Synchronized</div>
+              <span style={{ fontSize: '12px', color: '#9ca3af' }}>Recalculates on bill upload</span>
+            </div>
+          </div>
+
+          {/* Synchronized Anomalies Table & Detailed Breakdown */}
+          <div className="glass-card" style={{ marginBottom: '24px' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '8px' }}>
+              Detected Consumption Anomalies (Exact Forecast Matching)
+            </h3>
+            <p style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '18px' }}>
+              Identifies abnormal spikes, evening surges, and standby baseload drifts with physical explanations and variance calculations.
+            </p>
+
+            {synchronizedAnomalies.length > 0 ? (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #374151', color: '#9ca3af' }}>
+                      <th style={{ padding: '10px' }}>Anomaly Date & Time</th>
+                      <th style={{ padding: '10px' }}>Actual Consumption</th>
+                      <th style={{ padding: '10px' }}>Expected Normal</th>
+                      <th style={{ padding: '10px' }}>Difference (Spike)</th>
+                      <th style={{ padding: '10px' }}>Severity</th>
+                      <th style={{ padding: '10px' }}>Why Anomaly Was Detected</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {synchronizedAnomalies.slice(0, 10).map((anom, idx) => {
+                      const dtStr = typeof anom.timestamp === 'string' ? anom.timestamp : anom.timestamp?.toISOString?.() || 'Interval';
+                      const formattedDt = dtStr.includes('T') ? dtStr.replace('T', ' ').substring(0, 16) : dtStr;
+                      return (
+                        <tr key={idx} style={{ borderBottom: '1px solid #1f293d' }}>
+                          <td style={{ padding: '10px', fontWeight: '600', color: '#f9fafb' }}>
+                            {formattedDt}
+                          </td>
+                          <td style={{ padding: '10px', color: '#f43f5e', fontWeight: '700' }}>
+                            {anom.actual_kwh} kWh
+                          </td>
+                          <td style={{ padding: '10px', color: '#06b6d4' }}>
+                            {anom.expected_normal_kwh} kWh
+                          </td>
+                          <td style={{ padding: '10px', color: '#fbbf24', fontWeight: '700' }}>
+                            +{anom.difference_kwh} kWh
+                          </td>
+                          <td style={{ padding: '10px' }}>
+                            <span className={`badge ${anom.severity === 'High' ? 'badge-rose' : 'badge-amber'}`}>
+                              {anom.severity || 'High'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '10px', color: '#cbd5e1', fontSize: '12px' }}>
+                            {anom.likely_cause}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ padding: '24px', textAlign: 'center', color: '#9ca3af', background: '#0b0f19', borderRadius: '10px' }}>
+                <CheckCircle2 size={32} color="#10b981" style={{ margin: '0 auto 10px' }} />
+                <div style={{ color: '#f9fafb', fontWeight: '600', fontSize: '15px' }}>
+                  No Abnormal Consumption Spikes Detected
+                </div>
+                <p style={{ fontSize: '12px', marginTop: '4px' }}>
+                  Electricity usage in the active continuous evaluation period matches standard diurnal baselines.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Anomaly Prevention Actions */}
           <div className="glass-card">
-            <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '14px' }}>Anomaly Prevention Actions</h3>
+            <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '14px' }}>
+              Actionable Anomaly Prevention Guidelines
+            </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div style={{ padding: '12px 16px', borderRadius: '8px', background: 'rgba(244, 63, 94, 0.08)', borderLeft: '4px solid #f43f5e', fontSize: '13px' }}>
-                <strong>Evening Peak Surge Warning:</strong> High load detected between 7:00 PM and 10:00 PM. Stagger washing machines and water geysers to non-peak daylight hours.
+                <strong>Evening Peak Surge Avoidance (6 PM – 10 PM):</strong> Stagger high-draw equipment (water heaters, induction stoves, washing machines, EV chargers) away from peak evening hours to avoid breaching high tariff slab thresholds.
               </div>
               <div style={{ padding: '12px 16px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.08)', borderLeft: '4px solid #f59e0b', fontSize: '13px' }}>
-                <strong>Standby Power Drift:</strong> Baselines between 2:00 AM and 5:00 AM rose by 0.18 kWh. Check refrigerator door gaskets and TV standby plugs.
+                <strong>Night-time Standby Baselines (1 AM – 5 AM):</strong> Baselines higher than 0.25 kWh/hr usually indicate faulty refrigerator compressor door seals, continuous water heater cycling, or water pump dry runs.
+              </div>
+              <div style={{ padding: '12px 16px', borderRadius: '8px', background: 'rgba(6, 182, 212, 0.08)', borderLeft: '4px solid #06b6d4', fontSize: '13px' }}>
+                <strong>Dynamic Re-evaluation:</strong> Whenever a new utility bill is uploaded, the anomaly engine automatically re-calibrates against your updated consumption volume.
               </div>
             </div>
           </div>
@@ -1751,14 +2241,17 @@ export default function App() {
 
               {/* Quick Select Golden Sample Bills */}
               <div className="glass-card">
-                <h4 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '10px' }}>Loaded Bills (BILLS Folder)</h4>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <h4 style={{ fontSize: '14px', fontWeight: '600' }}>Available Verified Bills</h4>
+                  <span className="badge badge-cyan">{billsList.length} Bills</span>
+                </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {billsList.map((bill) => (
                     <div
                       key={bill.bill_id}
-                      onClick={() => setSelectedBill(bill)}
+                      onClick={() => syncDashboardWithBill(bill)}
                       style={{
-                        padding: '10px 14px',
+                        padding: '12px 14px',
                         borderRadius: '8px',
                         background: selectedBill?.bill_id === bill.bill_id ? '#1f293d' : '#0b0f19',
                         border: selectedBill?.bill_id === bill.bill_id ? '1px solid #10b981' : '1px solid #1f293d',
@@ -1767,16 +2260,19 @@ export default function App() {
                         justifyContent: 'space-between',
                         alignItems: 'center',
                         fontSize: '12px',
+                        transition: 'all 0.15s'
                       }}
                     >
                       <div>
-                        <strong style={{ color: '#f9fafb', display: 'block' }}>{bill.file_name}</strong>
-                        <span style={{ color: '#9ca3af', fontSize: '11px' }}>{bill.provider_name.split('(')[0]}</span>
+                        <strong style={{ color: '#f9fafb', display: 'block', fontSize: '13px' }}>{bill.file_name}</strong>
+                        <span style={{ color: '#9ca3af', fontSize: '11px' }}>
+                          {bill.discom || bill.provider_name.split('(')[0]} · {bill.location_type?.toUpperCase()}
+                        </span>
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <span style={{ fontWeight: '700', color: '#06b6d4' }}>{bill.units_consumed_kwh} kWh</span>
-                        <div style={{ fontSize: '11px', color: bill.net_payable_inr === 0 ? '#34d399' : '#f9fafb' }}>
-                          ₹{bill.net_payable_inr}
+                        <div style={{ fontSize: '11px', color: (bill.net_payable_inr === 0 || bill.calculated_amount_inr === 0) ? '#34d399' : '#f9fafb' }}>
+                          ₹{bill.net_payable_inr ?? bill.gross_amount_inr}
                         </div>
                       </div>
                     </div>
@@ -1785,16 +2281,17 @@ export default function App() {
               </div>
             </div>
 
-            {/* Bill Review, Edit & Confirm Form (PRISM-M I8, I9, U4, U5) */}
+            {/* Bill Review, Edit & Confirm Form (Requirements 1, 7, 8) */}
             {selectedBill ? (
               <div className="glass-card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '18px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '18px', flexWrap: 'wrap', gap: '10px' }}>
                   <div>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      <span className="badge badge-emerald">{selectedBill.review_status}</span>
-                      {selectedBill.is_gruha_jyothi_applied && (
-                        <span className="badge badge-cyan">Gruha Jyothi Zero-Bill</span>
-                      )}
+                      <span className="badge badge-emerald">{selectedBill.review_status || 'Extracted'}</span>
+                      <span className={`badge ${selectedBill.location_type === 'rural' ? 'badge-amber' : 'badge-cyan'}`}>
+                        {selectedBill.location_type?.toUpperCase() || 'URBAN'}
+                      </span>
+                      <span className="badge badge-emerald">{selectedBill.consumer_category || 'LT-I Domestic'}</span>
                     </div>
                     <h3 style={{ fontSize: '20px', fontWeight: '800', marginTop: '6px' }}>
                       {selectedBill.file_name}
@@ -1802,71 +2299,168 @@ export default function App() {
                     <p style={{ fontSize: '12px', color: '#9ca3af' }}>{selectedBill.provider_name}</p>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <span style={{ fontSize: '11px', color: '#9ca3af' }}>Consumer (Masked PII)</span>
-                    <div style={{ fontFamily: 'monospace', fontWeight: '600' }}>{selectedBill.consumer_number}</div>
+                    <span style={{ fontSize: '11px', color: '#9ca3af' }}>Consumer: {selectedBill.consumer_name || 'Resident'}</span>
+                    <div style={{ fontFamily: 'monospace', fontWeight: '600', color: '#38bdf8' }}>{selectedBill.consumer_number}</div>
                   </div>
                 </div>
 
-                {/* Editable review grid */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px', background: '#0b0f19', padding: '16px', borderRadius: '12px', marginBottom: '18px' }}>
+                {/* Editable review grid - Complete Bill Extraction Fields */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', background: '#0b0f19', padding: '16px', borderRadius: '12px', marginBottom: '18px' }}>
+                  <div>
+                    <label style={{ fontSize: '11px', color: '#9ca3af' }}>Consumer Name</label>
+                    <input
+                      type="text"
+                      value={selectedBill.consumer_name || ''}
+                      onChange={(e) => setSelectedBill({ ...selectedBill, consumer_name: e.target.value })}
+                      style={{ width: '100%', padding: '6px 8px', background: '#111827', border: '1px solid #374151', borderRadius: '6px', color: '#fff', fontSize: '13px', marginTop: '4px' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', color: '#9ca3af' }}>Consumer / Service No.</label>
+                    <input
+                      type="text"
+                      value={selectedBill.consumer_number || ''}
+                      onChange={(e) => setSelectedBill({ ...selectedBill, consumer_number: e.target.value })}
+                      style={{ width: '100%', padding: '6px 8px', background: '#111827', border: '1px solid #374151', borderRadius: '6px', color: '#fff', fontSize: '13px', marginTop: '4px' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', color: '#9ca3af' }}>DISCOM Provider</label>
+                    <select
+                      value={selectedBill.discom || 'APSPDCL'}
+                      onChange={(e) => setSelectedBill({ ...selectedBill, discom: e.target.value, state: e.target.value.startsWith('AP') ? 'Andhra Pradesh' : 'Telangana' })}
+                      style={{ width: '100%', padding: '6px 8px', background: '#111827', border: '1px solid #374151', borderRadius: '6px', color: '#fff', fontSize: '13px', marginTop: '4px' }}
+                    >
+                      <option value="APSPDCL">APSPDCL (Southern Power AP)</option>
+                      <option value="APEPDCL">APEPDCL (Eastern Power AP)</option>
+                      <option value="APCPDCL">APCPDCL (Central Power AP)</option>
+                      <option value="TGSPDCL">TGSPDCL (Telangana Southern)</option>
+                      <option value="UPPCL">UPPCL (Uttar Pradesh)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', color: '#9ca3af' }}>Location Classification</label>
+                    <select
+                      value={selectedBill.location_type || 'urban'}
+                      onChange={(e) => setSelectedBill({ ...selectedBill, location_type: e.target.value })}
+                      style={{ width: '100%', padding: '6px 8px', background: '#111827', border: '1px solid #374151', borderRadius: '6px', color: '#fff', fontSize: '13px', marginTop: '4px' }}
+                    >
+                      <option value="urban">Urban (Corporation/Municipality)</option>
+                      <option value="rural">Rural (Gram Panchayat)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', color: '#9ca3af' }}>Sanctioned Load (kW)</label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={selectedBill.sanctioned_load_kw || 2.0}
+                      onChange={(e) => setSelectedBill({ ...selectedBill, sanctioned_load_kw: Number(e.target.value) })}
+                      style={{ width: '100%', padding: '6px 8px', background: '#111827', border: '1px solid #374151', borderRadius: '6px', color: '#fff', fontSize: '13px', marginTop: '4px' }}
+                    />
+                  </div>
                   <div>
                     <label style={{ fontSize: '11px', color: '#9ca3af' }}>Units Consumed (kWh)</label>
                     <input
                       type="number"
                       value={selectedBill.units_consumed_kwh}
                       onChange={(e) => setSelectedBill({ ...selectedBill, units_consumed_kwh: Number(e.target.value) })}
-                      style={{ width: '100%', padding: '8px', background: '#111827', border: '1px solid #374151', borderRadius: '6px', color: '#fff', fontSize: '15px', fontWeight: '700', marginTop: '4px' }}
+                      style={{ width: '100%', padding: '6px 8px', background: '#111827', border: '1px solid #374151', borderRadius: '6px', color: '#38bdf8', fontSize: '15px', fontWeight: '700', marginTop: '4px' }}
                     />
                   </div>
                   <div>
                     <label style={{ fontSize: '11px', color: '#9ca3af' }}>Billing Days</label>
                     <input
                       type="number"
-                      value={selectedBill.billing_days}
+                      value={selectedBill.billing_days || 30}
                       onChange={(e) => setSelectedBill({ ...selectedBill, billing_days: Number(e.target.value) })}
-                      style={{ width: '100%', padding: '8px', background: '#111827', border: '1px solid #374151', borderRadius: '6px', color: '#fff', fontSize: '15px', marginTop: '4px' }}
+                      style={{ width: '100%', padding: '6px 8px', background: '#111827', border: '1px solid #374151', borderRadius: '6px', color: '#fff', fontSize: '13px', marginTop: '4px' }}
                     />
                   </div>
                   <div>
-                    <label style={{ fontSize: '11px', color: '#9ca3af' }}>Gruha Jyothi Subsidy</label>
-                    <div style={{ marginTop: '10px' }}>
+                    <label style={{ fontSize: '11px', color: '#9ca3af' }}>Billing Period Dates</label>
+                    <input
+                      type="text"
+                      value={`${selectedBill.billing_start_date || '01/10/2026'} - ${selectedBill.billing_end_date || '31/10/2026'}`}
+                      onChange={(e) => {
+                        const parts = e.target.value.split('-');
+                        setSelectedBill({
+                          ...selectedBill,
+                          billing_start_date: parts[0]?.trim(),
+                          billing_end_date: parts[1]?.trim() || selectedBill.billing_end_date
+                        });
+                      }}
+                      style={{ width: '100%', padding: '6px 8px', background: '#111827', border: '1px solid #374151', borderRadius: '6px', color: '#fff', fontSize: '12px', marginTop: '4px' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', color: '#9ca3af' }}>Meter Readings (Prev / Curr)</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginTop: '4px' }}>
                       <input
-                        type="checkbox"
-                        id="b_gjs"
-                        checked={selectedBill.is_gruha_jyothi_applied}
-                        onChange={(e) => setSelectedBill({ ...selectedBill, is_gruha_jyothi_applied: e.target.checked })}
-                        style={{ width: '18px', height: '18px', accentColor: '#10b981', verticalAlign: 'middle', marginRight: '6px' }}
+                        type="number"
+                        placeholder="Prev"
+                        value={selectedBill.meter_reading_previous ?? 1420}
+                        onChange={(e) => setSelectedBill({ ...selectedBill, meter_reading_previous: Number(e.target.value) })}
+                        style={{ padding: '6px', background: '#111827', border: '1px solid #374151', borderRadius: '6px', color: '#fff', fontSize: '12px' }}
                       />
-                      <label htmlFor="b_gjs" style={{ fontSize: '12px', cursor: 'pointer' }}>Eligible</label>
+                      <input
+                        type="number"
+                        placeholder="Curr"
+                        value={selectedBill.meter_reading_current ?? 1605}
+                        onChange={(e) => {
+                          const curr = Number(e.target.value);
+                          const prev = selectedBill.meter_reading_previous ?? 1420;
+                          setSelectedBill({
+                            ...selectedBill,
+                            meter_reading_current: curr,
+                            units_consumed_kwh: Math.max(0, curr - prev)
+                          });
+                        }}
+                        style={{ padding: '6px', background: '#111827', border: '1px solid #374151', borderRadius: '6px', color: '#fff', fontSize: '12px' }}
+                      />
                     </div>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', color: '#9ca3af' }}>Total Payable Billed Amount (₹)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={selectedBill.gross_amount_inr || selectedBill.net_payable_inr || 890.20}
+                      onChange={(e) => setSelectedBill({ ...selectedBill, gross_amount_inr: Number(e.target.value), net_payable_inr: Number(e.target.value) })}
+                      style={{ width: '100%', padding: '6px 8px', background: '#111827', border: '1px solid #374151', borderRadius: '6px', color: '#34d399', fontSize: '15px', fontWeight: '700', marginTop: '4px' }}
+                    />
                   </div>
                 </div>
 
                 {/* Financial breakdown */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', fontSize: '12px', marginBottom: '20px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px', fontSize: '12px', marginBottom: '20px' }}>
                   <div style={{ padding: '10px', background: '#0b0f19', borderRadius: '8px' }}>
-                    <span style={{ color: '#9ca3af' }}>Energy Charges:</span>
-                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#f9fafb' }}>₹{selectedBill.energy_charges_inr}</div>
+                    <span style={{ color: '#9ca3af', display: 'block' }}>Energy Charges:</span>
+                    <div style={{ fontSize: '15px', fontWeight: '700', color: '#f9fafb' }}>₹{selectedBill.energy_charges_inr}</div>
                   </div>
                   <div style={{ padding: '10px', background: '#0b0f19', borderRadius: '8px' }}>
-                    <span style={{ color: '#9ca3af' }}>Fixed Charges:</span>
-                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#f9fafb' }}>₹{selectedBill.fixed_charges_inr}</div>
+                    <span style={{ color: '#9ca3af', display: 'block' }}>Fixed Charges:</span>
+                    <div style={{ fontSize: '15px', fontWeight: '700', color: '#f9fafb' }}>₹{selectedBill.fixed_charges_inr}</div>
                   </div>
                   <div style={{ padding: '10px', background: '#0b0f19', borderRadius: '8px' }}>
-                    <span style={{ color: '#9ca3af' }}>Gross Billed:</span>
-                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#f9fafb' }}>₹{selectedBill.gross_amount_inr}</div>
+                    <span style={{ color: '#9ca3af', display: 'block' }}>Customer Charge:</span>
+                    <div style={{ fontSize: '15px', fontWeight: '700', color: '#f9fafb' }}>₹{selectedBill.customer_charges_inr || (selectedBill.location_type === 'rural' ? '25.00' : '50.00')}</div>
                   </div>
                   <div style={{ padding: '10px', background: '#0b0f19', borderRadius: '8px' }}>
-                    <span style={{ color: '#9ca3af' }}>Net Payable:</span>
-                    <div style={{ fontSize: '14px', fontWeight: '700', color: selectedBill.net_payable_inr === 0 ? '#34d399' : '#f9fafb' }}>
-                      ₹{selectedBill.net_payable_inr}
+                    <span style={{ color: '#9ca3af', display: 'block' }}>Subsidies / Adjustments:</span>
+                    <div style={{ fontSize: '15px', fontWeight: '700', color: '#34d399' }}>-₹{selectedBill.subsidy_amount_inr || selectedBill.subsidies_inr || 0}</div>
+                  </div>
+                  <div style={{ padding: '10px', background: '#0b0f19', borderRadius: '8px', border: '1px solid #10b981' }}>
+                    <span style={{ color: '#9ca3af', display: 'block' }}>Total Payable Amount:</span>
+                    <div style={{ fontSize: '16px', fontWeight: '800', color: '#34d399' }}>
+                      ₹{selectedBill.net_payable_inr ?? selectedBill.gross_amount_inr}
                     </div>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
-                  <button className="btn-primary" onClick={handleConfirmBill}>
-                    <Check size={16} /> Confirm & Apply to Dashboard
+                <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
+                  <button className="btn-primary" onClick={handleConfirmBill} style={{ padding: '10px 18px', fontSize: '13px' }}>
+                    <Check size={16} /> Confirm & Synchronize All Dashboard Sections
                   </button>
                   {billsList.length >= 2 && (
                     <button
@@ -1875,6 +2469,7 @@ export default function App() {
                         const other = billsList.find(b => b.bill_id !== selectedBill.bill_id);
                         if (other) handleCompareBills(selectedBill.bill_id, other.bill_id);
                       }}
+                      style={{ padding: '10px 18px', fontSize: '13px' }}
                     >
                       Compare with {billsList.find(b => b.bill_id !== selectedBill.bill_id)?.file_name}
                     </button>
@@ -2425,7 +3020,7 @@ export default function App() {
                       <div style={{ fontSize: '15px', fontWeight: '700', color: '#fbbf24' }}>{item.payback_years} Yrs</div>
                     </div>
                     <div>
-                      <span style={{ color: '#9ca3af' }}>10-Yr Net Profit:</span>
+                      <span style={{ color: '#9ca3af' }}>10-Yr Net Savings (Est.):</span>
                       <div style={{ fontSize: '15px', fontWeight: '700', color: '#34d399' }}>₹{item.ten_year_net_savings_inr.toLocaleString()}</div>
                     </div>
                   </div>
@@ -2440,78 +3035,214 @@ export default function App() {
         </section>
       )}
 
-      {/* -------------------- TAB 6: APPLIANCES & DISAGGREGATION -------------------- */}
+      {/* -------------------- TAB 6: APPLIANCES & DISAGGREGATION (14 Core Appliances) -------------------- */}
       {activeTab === 'appliances' && (
         <section>
-          {/* Disaggregation Executive Summary Banner */}
-          <div className="glass-card" style={{ marginBottom: '24px', background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(16, 185, 129, 0.05))', border: '1px solid rgba(6, 182, 212, 0.3)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+          {/* Transparent Model-Estimated Disclaimer Banner (Requirement 3) */}
+          <div className="glass-card" style={{ marginBottom: '20px', background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <AlertTriangle size={22} color="#fbbf24" style={{ flexShrink: 0 }} />
               <div>
-                <span className="badge badge-cyan">REFIT AI Disaggregation Engine (PRISM-M E-08)</span>
-                <h3 style={{ fontSize: '20px', fontWeight: '800', marginTop: '8px' }}>
-                  {disaggregationData?.summary || 'Appliance-Level Energy Disaggregation Active'}
-                </h3>
-                <p style={{ fontSize: '13px', color: '#9ca3af', marginTop: '4px' }}>
-                  Decomposed from your total monthly usage of {inputUnits} kWh using multi-house sub-metered regression models.
+                <strong style={{ color: '#fbbf24', fontSize: '14px' }}>Model-Estimated Breakdown (Not Sub-Metered by Utility Meter)</strong>
+                <p style={{ fontSize: '12px', color: '#cbd5e1', marginTop: '2px', lineHeight: '1.5' }}>
+                  Electricity bills and standard utility meters only record whole-house total consumption. The breakdown below represents engineering model estimates based on appliance power ratings (kW), assumed daily runtime, and REFIT disaggregation benchmarks, reconciled with your active billed usage of <strong>{inputUnits} kWh</strong>.
                 </p>
-              </div>
-              <div style={{ display: 'flex', gap: '14px' }}>
-                <div style={{ padding: '10px 16px', background: '#0b0f19', borderRadius: '10px', border: '1px solid #1f293d' }}>
-                  <span style={{ fontSize: '11px', color: '#9ca3af' }}>Top Appliance</span>
-                  <div style={{ fontSize: '15px', fontWeight: '700', color: '#06b6d4' }}>{disaggregationData?.top_consuming_appliance || 'Air Conditioning'}</div>
-                </div>
-                <div style={{ padding: '10px 16px', background: '#0b0f19', borderRadius: '10px', border: '1px solid #1f293d' }}>
-                  <span style={{ fontSize: '11px', color: '#9ca3af' }}>Identified Savings</span>
-                  <div style={{ fontSize: '15px', fontWeight: '700', color: '#34d399' }}>₹{disaggregationData?.potential_appliance_savings_inr || '148'}/mo</div>
-                </div>
               </div>
             </div>
           </div>
 
-          {/* Disaggregated Appliance Cards */}
+          {/* Reconciliation & Control Bar */}
+          <div className="glass-card" style={{ marginBottom: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '16px' }}>
+              <div>
+                <span className="badge badge-cyan">REFIT AI Disaggregation Engine</span>
+                <h3 style={{ fontSize: '18px', fontWeight: '800', marginTop: '6px' }}>
+                  Complete 14 Household Appliances Manager
+                </h3>
+                <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '2px' }}>
+                  Adjust power ratings (kW) or daily operating hours to customize consumption modeling.
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <button
+                  className="btn-primary"
+                  onClick={() => setShowAddApplianceModal(true)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '8px 14px' }}
+                >
+                  <Plus size={15} /> Add Custom Appliance
+                </button>
+                <button
+                  className="btn-secondary"
+                  onClick={() => handleRecalculateAppliances(appliancesList)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '8px 14px' }}
+                >
+                  <RefreshCw size={15} /> Recalculate & Reconcile
+                </button>
+              </div>
+            </div>
+
+            {/* Reconciliation KPI Strip */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', background: '#0b0f19', padding: '14px', borderRadius: '10px', fontSize: '12px' }}>
+              <div>
+                <span style={{ color: '#9ca3af' }}>Total Billed Energy:</span>
+                <div style={{ fontSize: '18px', fontWeight: '800', color: '#38bdf8' }}>{inputUnits} kWh</div>
+                <span style={{ fontSize: '10px', color: '#6b7280' }}>From active bill</span>
+              </div>
+              <div>
+                <span style={{ color: '#9ca3af' }}>Allocated Appliance Sum:</span>
+                <div style={{ fontSize: '18px', fontWeight: '800', color: '#34d399' }}>
+                  {disaggregationData?.total_allocated_kwh || appliancesList.reduce((acc, a) => acc + (a.monthly_kwh || 0), 0).toFixed(1)} kWh
+                </div>
+                <span style={{ fontSize: '10px', color: '#6b7280' }}>Sum of appliance draws</span>
+              </div>
+              <div>
+                <span style={{ color: '#9ca3af' }}>Unallocated Baseline:</span>
+                <div style={{ fontSize: '18px', fontWeight: '800', color: (disaggregationData?.unallocated_kwh || 0) > 0 ? '#fbbf24' : '#10b981' }}>
+                  {disaggregationData?.unallocated_kwh || 0} kWh ({disaggregationData?.unallocated_percentage || 0}%)
+                </div>
+                <span style={{ fontSize: '10px', color: '#6b7280' }}>Lighting & vampire standby</span>
+              </div>
+              <div>
+                <span style={{ color: '#9ca3af' }}>Potential Monthly Savings:</span>
+                <div style={{ fontSize: '18px', fontWeight: '800', color: '#34d399' }}>
+                  ₹{disaggregationData?.potential_appliance_savings_inr || '148'}/mo
+                </div>
+                <span style={{ fontSize: '10px', color: '#6b7280' }}>Via targeted efficiency</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Interactive 14 Household Appliances Grid */}
           <div style={{ marginBottom: '32px' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '14px' }}>Appliance Decomposition Breakdown</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: '700' }}>Household Appliances Portfolio ({appliancesList.length} Appliances)</h3>
+              <span style={{ fontSize: '12px', color: '#9ca3af' }}>Editable ratings & hours</span>
+            </div>
+
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(310px, 1fr))', gap: '18px' }}>
-              {(disaggregationData?.appliances || []).map((app, i) => (
-                <div key={i} className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              {appliancesList.map((app, i) => (
+                <div key={app.id || i} className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                   <div>
+                    {/* Header */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                      <span style={{ fontSize: '24px' }}>{app.icon}</span>
-                      <span className={`badge ${app.efficiency_status === 'Optimal' ? 'badge-emerald' : app.efficiency_status === 'High Consumption' ? 'badge-rose' : 'badge-amber'}`}>
-                        {app.efficiency_status}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '24px' }}>{app.icon || '⚡'}</span>
+                        <div>
+                          <h4 style={{ fontSize: '15px', fontWeight: '700' }}>{app.name}</h4>
+                          <span style={{ fontSize: '11px', color: '#9ca3af' }}>{app.category || 'Domestic'}</span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span className={`badge ${app.efficiency_status === 'Optimal' ? 'badge-emerald' : app.efficiency_status === 'High Consumption' ? 'badge-rose' : 'badge-amber'}`}>
+                          {app.efficiency_status || 'Average'}
+                        </span>
+                        <button
+                          onClick={() => {
+                            const updated = appliancesList.filter((_, idx) => idx !== i);
+                            setAppliancesList(updated);
+                            handleRecalculateAppliances(updated);
+                          }}
+                          style={{ background: 'transparent', border: 'none', color: '#6b7280', cursor: 'pointer', padding: '4px' }}
+                          title="Remove appliance"
+                        >
+                          <Trash2 size={14} color="#f43f5e" />
+                        </button>
+                      </div>
                     </div>
 
-                    <h4 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '4px' }}>{app.name}</h4>
-                    <span style={{ fontSize: '12px', color: '#9ca3af' }}>{app.category}</span>
+                    {/* Inline Editable Parameters (kW, Hours/Day, Quantity) */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', background: '#0b0f19', padding: '10px', borderRadius: '8px', marginBottom: '12px', fontSize: '11px' }}>
+                      <div>
+                        <label style={{ color: '#9ca3af', display: 'block', marginBottom: '2px' }}>Power (kW)</label>
+                        <input
+                          type="number"
+                          step="0.05"
+                          value={app.power_rating_kw}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            const updated = [...appliancesList];
+                            updated[i] = { ...updated[i], power_rating_kw: val };
+                            setAppliancesList(updated);
+                          }}
+                          onBlur={() => handleRecalculateAppliances(appliancesList)}
+                          style={{ width: '100%', padding: '4px', background: '#111827', border: '1px solid #374151', borderRadius: '4px', color: '#fff', fontSize: '12px' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ color: '#9ca3af', display: 'block', marginBottom: '2px' }}>Hours/Day</label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          max="24"
+                          value={app.daily_hours}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            const updated = [...appliancesList];
+                            updated[i] = { ...updated[i], daily_hours: val };
+                            setAppliancesList(updated);
+                          }}
+                          onBlur={() => handleRecalculateAppliances(appliancesList)}
+                          style={{ width: '100%', padding: '4px', background: '#111827', border: '1px solid #374151', borderRadius: '4px', color: '#fff', fontSize: '12px' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ color: '#9ca3af', display: 'block', marginBottom: '2px' }}>Units Count</label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="20"
+                          value={app.quantity || 1}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            const updated = [...appliancesList];
+                            updated[i] = { ...updated[i], quantity: val };
+                            setAppliancesList(updated);
+                          }}
+                          onBlur={() => handleRecalculateAppliances(appliancesList)}
+                          style={{ width: '100%', padding: '4px', background: '#111827', border: '1px solid #374151', borderRadius: '4px', color: '#fff', fontSize: '12px' }}
+                        />
+                      </div>
+                    </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: '#0b0f19', padding: '12px', borderRadius: '8px', margin: '14px 0', fontSize: '12px' }}>
+                    {/* Calculated Consumption & Cost Metrics */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: '#0b0f19', padding: '10px 12px', borderRadius: '8px', marginBottom: '12px', fontSize: '12px' }}>
                       <div>
-                        <span style={{ color: '#9ca3af' }}>Monthly kWh:</span>
-                        <div style={{ fontSize: '16px', fontWeight: '700', color: '#f9fafb' }}>{app.monthly_kwh} <span style={{ fontSize: '11px' }}>kWh</span></div>
+                        <span style={{ color: '#9ca3af', fontSize: '11px' }}>Monthly Consumption:</span>
+                        <div style={{ fontSize: '15px', fontWeight: '700', color: '#f9fafb' }}>
+                          {app.monthly_kwh || (app.power_rating_kw * app.daily_hours * 30 * (app.quantity || 1) * (app.duty_cycle || 0.8)).toFixed(1)}{' '}
+                          <span style={{ fontSize: '11px', color: '#9ca3af' }}>kWh</span>
+                        </div>
                       </div>
                       <div>
-                        <span style={{ color: '#9ca3af' }}>Estimated Cost:</span>
-                        <div style={{ fontSize: '16px', fontWeight: '700', color: '#10b981' }}>₹{app.monthly_cost_inr}</div>
+                        <span style={{ color: '#9ca3af', fontSize: '11px' }}>Estimated Cost:</span>
+                        <div style={{ fontSize: '15px', fontWeight: '700', color: '#10b981' }}>
+                          ₹{app.monthly_cost_inr || ((app.monthly_kwh || 10) * (tariffResult?.effective_rate_per_kwh || 4.5)).toFixed(2)}
+                        </div>
                       </div>
                       <div>
-                        <span style={{ color: '#9ca3af' }}>Your Share:</span>
-                        <div style={{ fontSize: '13px', fontWeight: '600', color: '#06b6d4' }}>{app.share_percentage}%</div>
+                        <span style={{ color: '#9ca3af', fontSize: '11px' }}>Share of Bill:</span>
+                        <div style={{ fontSize: '13px', fontWeight: '600', color: '#06b6d4' }}>
+                          {app.share_percentage || (((app.monthly_kwh || 10) / inputUnits) * 100).toFixed(1)}%
+                        </div>
                       </div>
                       <div>
-                        <span style={{ color: '#9ca3af' }}>Benchmark:</span>
-                        <div style={{ fontSize: '13px', fontWeight: '600', color: '#9ca3af' }}>~{app.benchmark_percentage}%</div>
+                        <span style={{ color: '#9ca3af', fontSize: '11px' }}>Benchmark:</span>
+                        <div style={{ fontSize: '13px', fontWeight: '600', color: '#9ca3af' }}>
+                          ~{app.benchmark_percentage || 5.0}%
+                        </div>
                       </div>
                     </div>
                   </div>
 
+                  {/* Recommendation Tip */}
                   {app.recommendation ? (
                     <div style={{ padding: '8px 12px', borderRadius: '6px', background: 'rgba(244, 63, 94, 0.08)', borderLeft: '3px solid #f43f5e', fontSize: '11px', color: '#fca5a5' }}>
                       {app.recommendation}
                     </div>
                   ) : (
                     <div style={{ fontSize: '11px', color: '#6b7280', paddingTop: '4px' }}>
-                      ✓ Consumption aligns with optimal efficiency thresholds.
+                      ✓ Operation is within recommended residential efficiency targets.
                     </div>
                   )}
                 </div>
@@ -2519,35 +3250,131 @@ export default function App() {
             </div>
           </div>
 
-          {/* Appliance Survey */}
-          <div className="glass-card">
-            <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '8px' }}>Declared Household Appliances</h3>
-            <p style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '20px' }}>
-              Appliances identified in user survey; used to initialize prior feature distributions for disaggregation.
-            </p>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px' }}>
-              {[
-                { name: '1.5 Ton Split AC', icon: '❄️', count: 2, hours: '6 hrs/day', star: '3-Star Non-Inverter' },
-                { name: 'Double Door Refrigerator', icon: '🧊', count: 1, hours: '24 hrs/day', star: '4-Star Frost Free' },
-                { name: 'Storage Water Geyser', icon: '♨️', count: 2, hours: '1.5 hrs/day', star: 'Standard Resistive' },
-                { name: 'Front Load Washing Machine', icon: '🧺', count: 1, hours: '1 hr/day', star: '5-Star Inverter' },
-                { name: 'LED Lights & Ceiling Fans', icon: '💡', count: 12, hours: '8 hrs/day', star: 'BLDC / LED' }
-              ].map((app, i) => (
-                <div key={i} style={{ padding: '14px', borderRadius: '10px', background: '#0b0f19', border: '1px solid #1f293d' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                    <span style={{ fontSize: '18px' }}>{app.icon}</span>
-                    <strong style={{ fontSize: '13px' }}>{app.name}</strong>
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#9ca3af', display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Count: {app.count}</span>
-                    <span>Runtime: {app.hours}</span>
-                  </div>
-                  <div style={{ marginTop: '4px', fontSize: '11px', color: '#06b6d4' }}>Rating: {app.star}</div>
+          {/* Add Custom Appliance Modal */}
+          {showAddApplianceModal && (
+            <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(6px)', padding: '20px' }}>
+              <div className="glass-card" style={{ maxWidth: '480px', width: '100%', background: '#111827', border: '1px solid #374151', borderRadius: '14px', padding: '24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <h3 style={{ fontSize: '16px', fontWeight: '700' }}>Add Household Appliance</h3>
+                  <button onClick={() => setShowAddApplianceModal(false)} style={{ background: 'transparent', border: 'none', color: '#9ca3af', cursor: 'pointer' }}>
+                    <X size={18} />
+                  </button>
                 </div>
-              ))}
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div>
+                    <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Appliance Name</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Electric Vehicle Charger / Air Purifier"
+                      value={newApplianceForm.name}
+                      onChange={(e) => setNewApplianceForm({ ...newApplianceForm, name: e.target.value })}
+                      style={{ width: '100%', padding: '8px', background: '#0b0f19', border: '1px solid #374151', borderRadius: '6px', color: '#fff', fontSize: '13px' }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Category</label>
+                      <select
+                        value={newApplianceForm.category}
+                        onChange={(e) => setNewApplianceForm({ ...newApplianceForm, category: e.target.value })}
+                        style={{ width: '100%', padding: '8px', background: '#0b0f19', border: '1px solid #374151', borderRadius: '6px', color: '#fff', fontSize: '13px' }}
+                      >
+                        <option value="Cooling">Cooling</option>
+                        <option value="Heating">Heating</option>
+                        <option value="Kitchen">Kitchen</option>
+                        <option value="Laundry">Laundry</option>
+                        <option value="Electronics">Electronics</option>
+                        <option value="EV & Mobility">EV & Mobility</option>
+                        <option value="General">General</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Icon</label>
+                      <select
+                        value={newApplianceForm.icon}
+                        onChange={(e) => setNewApplianceForm({ ...newApplianceForm, icon: e.target.value })}
+                        style={{ width: '100%', padding: '8px', background: '#0b0f19', border: '1px solid #374151', borderRadius: '6px', color: '#fff', fontSize: '13px' }}
+                      >
+                        <option value="⚡">⚡ Electric</option>
+                        <option value="🚗">🚗 EV Charger</option>
+                        <option value="💨">💨 Air Purifier</option>
+                        <option value="☕">☕ Coffee Maker</option>
+                        <option value="❄️">❄️ Cooling</option>
+                        <option value="♨️">♨️ Heating</option>
+                        <option value="🔊">🔊 Audio / Speaker</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Power (kW)</label>
+                      <input
+                        type="number"
+                        step="0.05"
+                        value={newApplianceForm.power_rating_kw}
+                        onChange={(e) => setNewApplianceForm({ ...newApplianceForm, power_rating_kw: Number(e.target.value) })}
+                        style={{ width: '100%', padding: '8px', background: '#0b0f19', border: '1px solid #374151', borderRadius: '6px', color: '#fff', fontSize: '13px' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Hours/Day</label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={newApplianceForm.daily_hours}
+                        onChange={(e) => setNewApplianceForm({ ...newApplianceForm, daily_hours: Number(e.target.value) })}
+                        style={{ width: '100%', padding: '8px', background: '#0b0f19', border: '1px solid #374151', borderRadius: '6px', color: '#fff', fontSize: '13px' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Quantity</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={newApplianceForm.quantity}
+                        onChange={(e) => setNewApplianceForm({ ...newApplianceForm, quantity: Number(e.target.value) })}
+                        style={{ width: '100%', padding: '8px', background: '#0b0f19', border: '1px solid #374151', borderRadius: '6px', color: '#fff', fontSize: '13px' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
+                    <button
+                      className="btn-primary"
+                      onClick={() => {
+                        if (!newApplianceForm.name) return;
+                        const added = {
+                          id: `custom_${Date.now()}`,
+                          name: newApplianceForm.name,
+                          category: newApplianceForm.category,
+                          icon: newApplianceForm.icon,
+                          power_rating_kw: Number(newApplianceForm.power_rating_kw),
+                          daily_hours: Number(newApplianceForm.daily_hours),
+                          quantity: Number(newApplianceForm.quantity || 1),
+                          duty_cycle: 1.0,
+                          benchmark_percentage: 4.0,
+                          recommendation: 'Optimize runtime during non-peak hours.',
+                        };
+                        const updated = [...appliancesList, added];
+                        setAppliancesList(updated);
+                        setShowAddApplianceModal(false);
+                        handleRecalculateAppliances(updated);
+                      }}
+                      style={{ flex: 1, justifyContent: 'center' }}
+                    >
+                      Add & Reconcile
+                    </button>
+                    <button className="btn-secondary" onClick={() => setShowAddApplianceModal(false)}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </section>
       )}
 

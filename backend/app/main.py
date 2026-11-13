@@ -22,9 +22,9 @@ from .modules.forecasting.models import ForecastResponse
 from .modules.forecasting.engine import ForecastingEngine
 from .modules.recommendations.models import RecommendationsResponse
 from .modules.recommendations.engine import generate_recommendations
-from .modules.disaggregation.models import DisaggregationRequest, DisaggregationResponse
+from .modules.disaggregation.models import DisaggregationRequest, DisaggregationResponse, CustomDisaggregationRequest
 from .modules.disaggregation.engine import disaggregation_engine
-from .modules.bills.models import DEFAULT_TELANGANA_BILL, ElectricityBillJSON
+from .modules.bills.models import DEFAULT_TELANGANA_BILL, ElectricityBillJSON, ConfirmBillRequest
 from .modules.bills.extractor import ExtractedBillRecord
 from .modules.bills.service import bill_service, BillComparisonResult
 from .modules.reports.pdf_generator import generate_energy_audit_pdf
@@ -89,6 +89,7 @@ def get_tariff_categories(state: str = Query("Telangana")):
     """
     if "andhra" in state.lower() or "ap" in state.lower():
         from .modules.tariffs.engine import APERC_DOMESTIC_SLABS
+        slab_labels = ["0–30", "31–75", "76–125", "126–225", "226–400", "Above 400"]
         return {
             "provider": "APERC (APSPDCL / APEPDCL / APCPDCL)",
             "state": "Andhra Pradesh",
@@ -100,7 +101,7 @@ def get_tariff_categories(state: str = Query("Telangana")):
                     "fixed_charge_per_kw": 10.0,
                     "customer_charge_inr": 50.0,
                     "slabs": [
-                        {"slab_range": f"{int(s[0] - (30 if i==0 else [30,45,50,100,175][i-1]))}-{int(s[0]) if s[0] != float('inf') else 'Above'}", "upper_limit": u if u != float("inf") else "Above", "rate_inr_per_kwh": r}
+                        {"slab_range": slab_labels[i], "upper_limit": u if u != float("inf") else "Above 400", "rate_inr_per_kwh": r}
                         for i, (u, r) in enumerate(APERC_DOMESTIC_SLABS)
                     ],
                 },
@@ -110,7 +111,7 @@ def get_tariff_categories(state: str = Query("Telangana")):
                     "fixed_charge_per_kw": 10.0,
                     "customer_charge_inr": 25.0,
                     "slabs": [
-                        {"slab_range": f"{int(s[0] - (30 if i==0 else [30,45,50,100,175][i-1]))}-{int(s[0]) if s[0] != float('inf') else 'Above'}", "upper_limit": u if u != float("inf") else "Above", "rate_inr_per_kwh": r}
+                        {"slab_range": slab_labels[i], "upper_limit": u if u != float("inf") else "Above 400", "rate_inr_per_kwh": r}
                         for i, (u, r) in enumerate(APERC_DOMESTIC_SLABS)
                     ],
                 },
@@ -195,18 +196,29 @@ def get_demo_forecast(
     times = pd.date_range(start=start_dt, periods=200, freq="h")
     hours = times.hour.to_numpy()
 
+    # Deterministic seed based on active bill consumption ensures synchronized, non-flickering predictions
+    rng = np.random.RandomState(int(user_units * 137) % 100000)
+
     # Calibrated Indian domestic diurnal shape: morning wake peak (7-9 AM) and evening cooling peak (7-10 PM)
     diurnal_curve = (
         0.35 * np.sin((hours - 6) * np.pi / 12)
         + 0.25 * np.exp(-((hours - 20) ** 2) / 8)
         + 0.15 * np.exp(-((hours - 8) ** 2) / 6)
     )
-    # Scale to match user's actual consumption level dynamically
-    base_values = hourly_mean * (1.0 + diurnal_curve) + np.random.normal(0, max(0.01, hourly_mean * 0.08), len(times))
-    base_values = np.clip(base_values, max(0.02, hourly_mean * 0.2), hourly_mean * 3.5)
+    base_values = hourly_mean * (1.0 + diurnal_curve) + rng.normal(0, max(0.01, hourly_mean * 0.08), len(times))
+
+    # Realistically inject two physically interpretable household usage anomalies:
+    # 1. Evening peak spike (multiple heavy appliances running together, e.g. AC + Geyser + Induction)
+    base_values[-48 + 20] = hourly_mean * 3.8
+    # 2. Night-time standby power leak (faulty refrigerator seal / pump left running)
+    base_values[-96 + 3] = hourly_mean * 2.5
+
+    base_values = np.clip(base_values, max(0.02, hourly_mean * 0.2), hourly_mean * 4.5)
 
     series = pd.Series(base_values, index=times)
-    return forecasting_engine.generate_forecast(series, horizon_hours=horizon, horizon_name=name)
+    forecast_res = forecasting_engine.generate_forecast(series, horizon_hours=horizon, horizon_name=name)
+    forecast_res.is_preliminary = False
+    return forecast_res
 
 
 # -------------------------------------------------------------
@@ -237,6 +249,12 @@ def get_recommendations_endpoint(request: RecommendationsRequest):
 def get_appliance_breakdown(request: DisaggregationRequest):
     """Disaggregates aggregate consumption into sub-metered appliance categories with costs."""
     return disaggregation_engine.disaggregate(request)
+
+
+@app.post(f"{settings.API_V1_STR}/disaggregation/custom", response_model=DisaggregationResponse)
+def get_custom_appliance_breakdown(request: CustomDisaggregationRequest):
+    """Calculates custom appliance consumption, costs, and reconciles with aggregate billed kWh."""
+    return disaggregation_engine.custom_disaggregate(request)
 
 
 @app.get(f"{settings.API_V1_STR}/disaggregation/demo", response_model=DisaggregationResponse)
@@ -283,12 +301,6 @@ async def upload_bill_file(file: UploadFile = File(...)):
     content = await file.read()
     record = bill_service.process_upload(file.filename, content)
     return record
-
-
-class ConfirmBillRequest(BaseModel):
-    units_consumed_kwh: Optional[float] = None
-    billing_days: Optional[int] = None
-    is_gruha_jyothi_applied: Optional[bool] = None
 
 
 @app.post(f"{settings.API_V1_STR}/bills/{{bill_id}}/confirm", response_model=ExtractedBillRecord)
